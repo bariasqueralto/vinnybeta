@@ -2,7 +2,6 @@ import { useState, useCallback } from 'react';
 import TopNav from '@/components/TopNav';
 import LeftSidebar from '@/components/LeftSidebar';
 import NetworkGraph from '@/components/NetworkGraph';
-import RightPanel from '@/components/RightPanel';
 import {
   DataSource,
   Contact,
@@ -42,7 +41,6 @@ const Index = () => {
 
     setMessages((prev) => [...prev, userMsg]);
 
-    // Simple keyword matching for demo
     setTimeout(() => {
       const lower = text.toLowerCase();
       let matched = false;
@@ -66,7 +64,7 @@ const Index = () => {
         const vinnyMsg: ChatMessage = {
           id: `v-${Date.now()}`,
           role: 'vinny',
-          content: "I searched your network but couldn't find a strong match. Try asking about **banking**, **fintech**, or **construction** contacts!",
+          content: "I searched your network but couldn't find a strong match. Try asking about **banking**, **Goldman**, or **JPMorgan** contacts!",
           timestamp,
         };
         setMessages((prev) => [...prev, vinnyMsg]);
@@ -79,18 +77,18 @@ const Index = () => {
     <div className="h-screen w-screen flex flex-col overflow-hidden">
       <TopNav />
       <div className="flex-1 flex overflow-hidden">
-        <LeftSidebar activeSources={activeSources} onToggleSource={handleToggleSource} />
+        <LeftSidebar
+          activeSources={activeSources}
+          onToggleSource={handleToggleSource}
+          messages={messages}
+          onSendMessage={handleSendMessage}
+        />
         <NetworkGraph
           contacts={mockContacts}
           activeSources={activeSources}
           highlightedIds={highlightedIds}
           selectedContactId={selectedContact?.id ?? null}
           onSelectContact={handleSelectContact}
-        />
-        <RightPanel
-          messages={messages}
-          onSendMessage={handleSendMessage}
-          selectedContact={selectedContact}
         />
       </div>
     </div>
