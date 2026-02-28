@@ -8,8 +8,19 @@ import {
   ChatMessage,
   mockContacts,
   initialChatMessages,
-  vinnyResponses,
 } from '@/data/mockData';
+
+const INDUSTRY_KEYWORDS: Array<[string, string]> = [
+  ['real estate', 'Real Estate'],
+  ['property', 'Real Estate'],
+  ['realty', 'Real Estate'],
+  ['banking', 'Banking'],
+  ['finance', 'Banking'],
+  ['bank', 'Banking'],
+  ['tech', 'Tech'],
+  ['technology', 'Tech'],
+  ['software', 'Tech'],
+];
 
 const Index = () => {
   const [activeSources, setActiveSources] = useState<Record<DataSource, boolean>>({
@@ -43,33 +54,47 @@ const Index = () => {
 
     setTimeout(() => {
       const lower = text.toLowerCase();
-      let matched = false;
+      let matched: Contact[] = [];
+      let responseText = '';
 
-      for (const [keyword, data] of Object.entries(vinnyResponses)) {
+      // Match by industry keyword
+      for (const [keyword, industry] of INDUSTRY_KEYWORDS) {
         if (lower.includes(keyword)) {
-          const vinnyMsg: ChatMessage = {
-            id: `v-${Date.now()}`,
-            role: 'vinny',
-            content: data.response,
-            timestamp,
-          };
-          setMessages((prev) => [...prev, vinnyMsg]);
-          setHighlightedIds(data.highlightIds);
-          matched = true;
+          matched = mockContacts.filter((c) => c.industry === industry);
+          const names = matched.map((c) => `**${c.name}**`).join(', ');
+          responseText = `Found **${matched.length} contact${matched.length !== 1 ? 's' : ''}** in ${industry} — highlighting them on your map now. You know ${names}.`;
           break;
         }
       }
 
-      if (!matched) {
-        const vinnyMsg: ChatMessage = {
-          id: `v-${Date.now()}`,
-          role: 'vinny',
-          content: "I searched your network but couldn't find a strong match. Try asking about **banking**, **Goldman**, or **JPMorgan** contacts!",
-          timestamp,
-        };
-        setMessages((prev) => [...prev, vinnyMsg]);
-        setHighlightedIds([]);
+      // Fall back to name or company match
+      if (matched.length === 0) {
+        matched = mockContacts.filter(
+          (c) =>
+            lower.includes(c.name.toLowerCase()) ||
+            lower.includes(c.company.toLowerCase())
+        );
+        if (matched.length === 1) {
+          const c = matched[0];
+          responseText = `**${c.name}** is a ${c.title} at **${c.company}** (${c.industry}). ${c.howYouKnow}`;
+        } else if (matched.length > 1) {
+          const names = matched.map((c) => `**${c.name}**`).join(', ');
+          responseText = `Found ${matched.length} contacts matching that — highlighting ${names} on your map.`;
+        }
       }
+
+      const vinnyMsg: ChatMessage = {
+        id: `v-${Date.now()}`,
+        role: 'vinny',
+        content:
+          matched.length > 0
+            ? responseText
+            : "I searched your network but couldn't find a match. Try asking about **banking**, **tech**, or **real estate** contacts!",
+        timestamp,
+      };
+
+      setMessages((prev) => [...prev, vinnyMsg]);
+      setHighlightedIds(matched.map((c) => c.id));
     }, 600);
   }, []);
 

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Sparkles } from 'lucide-react';
-import { ChatMessage, vinnyResponses } from '@/data/mockData';
+import { ChatMessage } from '@/data/mockData';
 
 interface ChatInterfaceProps {
   messages: ChatMessage[];
