@@ -180,15 +180,6 @@ const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContact
         </AnimatePresence>
       </svg>
 
-      {/* Legend */}
-      <div className="absolute bottom-4 left-4 glass-panel px-4 py-3 flex items-center gap-4">
-        {Object.entries(STROKE_COLORS).map(([source, color]) => (
-          <div key={source} className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-            <span className="text-[10px] text-muted-foreground capitalize">{source}</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 };

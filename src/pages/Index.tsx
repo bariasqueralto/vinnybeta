@@ -14,12 +14,7 @@ import {
 
 const Index = () => {
   const [activeSources, setActiveSources] = useState<Record<DataSource, boolean>>({
-    linkedin: true,
     outlook: true,
-    calendar: true,
-    phone: true,
-    teams: true,
-    university: true,
   });
 
   const [messages, setMessages] = useState<ChatMessage[]>(initialChatMessages);
