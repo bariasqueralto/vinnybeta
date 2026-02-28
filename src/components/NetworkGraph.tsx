@@ -29,7 +29,10 @@ const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContact
   const nodePositions = useMemo((): NodePosition[] => {
     const cx = 500;
     const cy = 400;
-    return filteredContacts.map((contact, i) => {
+    const MIN_NODE_DIST = 68; // 28 + 28 + 12px gap
+    const MIN_CENTER_DIST = 76; // 36 (center node) + 28 + 12px gap
+
+    const positions = filteredContacts.map((contact, i) => {
       const strength = contact.relationshipStrength;
       const radius = 220 - strength * 18;
       const angle = (i / filteredContacts.length) * Math.PI * 2 - Math.PI / 2;
@@ -40,6 +43,39 @@ const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContact
         contact,
       };
     });
+
+    // Iterative collision resolution
+    for (let iter = 0; iter < 60; iter++) {
+      for (let i = 0; i < positions.length; i++) {
+        // Push away from center node
+        const dcx = positions[i].x - cx;
+        const dcy = positions[i].y - cy;
+        const dc = Math.sqrt(dcx * dcx + dcy * dcy);
+        if (dc < MIN_CENTER_DIST && dc > 0) {
+          const push = MIN_CENTER_DIST - dc;
+          positions[i].x += (dcx / dc) * push;
+          positions[i].y += (dcy / dc) * push;
+        }
+
+        // Push away from other nodes
+        for (let j = i + 1; j < positions.length; j++) {
+          const dx = positions[j].x - positions[i].x;
+          const dy = positions[j].y - positions[i].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < MIN_NODE_DIST && dist > 0) {
+            const overlap = (MIN_NODE_DIST - dist) / 2;
+            const nx = dx / dist;
+            const ny = dy / dist;
+            positions[i].x -= nx * overlap;
+            positions[i].y -= ny * overlap;
+            positions[j].x += nx * overlap;
+            positions[j].y += ny * overlap;
+          }
+        }
+      }
+    }
+
+    return positions;
   }, [filteredContacts]);
 
   const getInitials = useCallback((name: string) => {
