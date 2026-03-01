@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Contact } from '@/data/mockData';
 
 // ─── System prompt ────────────────────────────────────────────────────────────
@@ -22,8 +22,7 @@ Guidelines:
 - If no contacts need to be highlighted, omit the marker entirely.
 `.trim();
 
-// ─── Regex to strip the highlight marker from displayed text ─────────────────
-// Handles partial streaming (marker appears token-by-token at the end)
+// ─── Strip highlight marker from displayed text ───────────────────────────────
 const HIGHLIGHT_RE = /\n?\{"highlight":\[.*$/s;
 
 export function stripHighlight(text: string): string {
@@ -47,35 +46,27 @@ export async function askVinny(
   onToken: (partialText: string) => void,
   signal?: AbortSignal
 ): Promise<string[]> {
-  const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
   if (!apiKey) {
     throw new Error('NO_API_KEY');
   }
 
-  const client = new Anthropic({
-    apiKey,
-    dangerouslyAllowBrowser: true,
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.0-flash',
+    systemInstruction: buildSystemPrompt(contacts),
   });
+
+  const result = await model.generateContentStream(userMessage);
 
   let fullText = '';
 
-  const stream = client.messages.stream({
-    model: 'claude-haiku-4-5',
-    max_tokens: 512,
-    system: buildSystemPrompt(contacts),
-    messages: [{ role: 'user', content: userMessage }],
-  });
-
-  for await (const event of stream) {
+  for await (const chunk of result.stream) {
     if (signal?.aborted) break;
-    if (
-      event.type === 'content_block_delta' &&
-      event.delta.type === 'text_delta'
-    ) {
-      fullText += event.delta.text;
-      onToken(stripHighlight(fullText));
-    }
+    const token = chunk.text();
+    fullText += token;
+    onToken(stripHighlight(fullText));
   }
 
   return parseHighlightIds(fullText);

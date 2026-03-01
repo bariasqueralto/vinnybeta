@@ -161,7 +161,7 @@ const Index = () => {
             id: vinnyMsgId,
             role: 'vinny',
             content:
-              'To unlock real AI answers, add your Anthropic API key to `.env.local` as `VITE_ANTHROPIC_API_KEY=your-key-here`, then restart the dev server.',
+              'To unlock real AI answers, add your Gemini API key to `.env.local` as `VITE_GEMINI_API_KEY=your-key-here`, then restart the dev server.',
             timestamp,
           },
         ]);
