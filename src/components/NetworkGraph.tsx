@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Contact, DataSource, STROKE_COLORS } from '@/data/mockData';
 import FloatingContactCard from './FloatingContactCard';
@@ -17,9 +17,55 @@ interface NodePosition {
   contact: Contact;
 }
 
+const DEFAULT_ZOOM = 1;
+const MIN_ZOOM = 0.4;
+const MAX_ZOOM = 4;
+const SVG_W = 1000;
+const SVG_H = 800;
+const SVG_CX = 500;
+const SVG_CY = 400;
+
 const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContactId, onSelectContact }: NetworkGraphProps) => {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [floatingContact, setFloatingContact] = useState<{ contact: Contact; position: { x: number; y: number } } | null>(null);
+  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  // Non-passive wheel listener so we can preventDefault
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 0.92 : 1 / 0.92;
+      setZoom(prev => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev * factor)));
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, []);
+
+  const viewBox = useMemo(() => {
+    const vbW = SVG_W / zoom;
+    const vbH = SVG_H / zoom;
+    const vbX = SVG_CX - vbW / 2;
+    const vbY = SVG_CY - vbH / 2;
+    return `${vbX} ${vbY} ${vbW} ${vbH}`;
+  }, [zoom]);
+
+  // Convert SVG coordinate space → container pixel space
+  const svgToContainer = useCallback((svgX: number, svgY: number) => {
+    if (!containerRef.current) return { x: 0, y: 0 };
+    const { width, height } = containerRef.current.getBoundingClientRect();
+    const vbW = SVG_W / zoom;
+    const vbH = SVG_H / zoom;
+    const vbX = SVG_CX - vbW / 2;
+    const vbY = SVG_CY - vbH / 2;
+    return {
+      x: (svgX - vbX) / vbW * width,
+      y: (svgY - vbY) / vbH * height,
+    };
+  }, [zoom]);
 
   const filteredContacts = useMemo(
     () => contacts.filter((c) => activeSources[c.source]),
@@ -29,8 +75,8 @@ const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContact
   const nodePositions = useMemo((): NodePosition[] => {
     const cx = 500;
     const cy = 400;
-    const MIN_NODE_DIST = 68; // 28 + 28 + 12px gap
-    const MIN_CENTER_DIST = 76; // 36 (center node) + 28 + 12px gap
+    const MIN_NODE_DIST = 95; // 28 + 28 + gap large enough for name labels
+    const MIN_CENTER_DIST = 90; // 36 (center node) + 28 + label gap
 
     const positions = filteredContacts.map((contact, i) => {
       const strength = contact.relationshipStrength;
@@ -85,16 +131,20 @@ const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContact
   const isHighlighted = (id: string) => highlightedIds.length === 0 || highlightedIds.includes(id);
 
   const handleNodeClick = (contact: Contact, event: React.MouseEvent) => {
-    const rect = (event.currentTarget as Element).closest('svg')?.getBoundingClientRect();
-    if (!rect) return;
-    const svgX = event.clientX - rect.left;
-    const svgY = event.clientY - rect.top;
-    setFloatingContact({ contact, position: { x: event.clientX + 20, y: event.clientY - 100 } });
+    const containerRect = containerRef.current?.getBoundingClientRect();
+    if (!containerRect) return;
+    const CARD_W = 320;
+    const CARD_H = 430;
+    const relX = event.clientX - containerRect.left + 20;
+    const relY = event.clientY - containerRect.top - 120;
+    const x = Math.max(8, Math.min(relX, containerRect.width - CARD_W));
+    const y = Math.max(8, Math.min(relY, containerRect.height - CARD_H));
+    setFloatingContact({ contact, position: { x, y } });
     onSelectContact(contact);
   };
 
   return (
-    <div className="flex-1 relative overflow-hidden bg-background">
+    <div ref={containerRef} className="flex-1 relative overflow-hidden bg-background">
       {/* Ambient glow effects */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-primary/[0.03] blur-[100px]" />
@@ -102,7 +152,7 @@ const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContact
         <div className="absolute bottom-1/3 left-1/3 w-[250px] h-[250px] rounded-full bg-node-outlook/[0.04] blur-[80px]" />
       </div>
 
-      <svg className="w-full h-full" viewBox="0 0 1000 800" preserveAspectRatio="xMidYMid meet">
+      <svg ref={svgRef} className="w-full h-full" viewBox={viewBox} preserveAspectRatio="xMidYMid meet">
         {/* Grid pattern */}
         <defs>
           <pattern id="grid" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
@@ -210,21 +260,32 @@ const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContact
                   {contact.name.split(' ')[0]}
                 </text>
 
-                {/* Hover tooltip */}
-                {hovered && !floatingContact && (
-                  <foreignObject x={x - 100} y={y - 90} width={200} height={65}>
-                    <div className="glass-panel px-3 py-2 text-center">
-                      <div className="text-[11px] font-medium text-foreground">{contact.name}</div>
-                      <div className="text-[10px] text-muted-foreground">{contact.title}, {contact.company}</div>
-                      <div className="text-[9px] text-primary mt-0.5">{contact.lastInteraction}</div>
-                    </div>
-                  </foreignObject>
-                )}
               </motion.g>
             );
           })}
         </AnimatePresence>
       </svg>
+
+      {/* Hover tooltip — DOM overlay so it never overlaps SVG text */}
+      {hoveredId && !floatingContact && (() => {
+        const nodePos = nodePositions.find(n => n.contact.id === hoveredId);
+        if (!nodePos) return null;
+        const { x: px, y: py } = svgToContainer(nodePos.x, nodePos.y);
+        const TOOLTIP_W = 200;
+        const containerW = containerRef.current?.getBoundingClientRect().width ?? 500;
+        const tx = Math.max(8, Math.min(px - TOOLTIP_W / 2, containerW - TOOLTIP_W - 8));
+        const ty = Math.max(8, py - 82);
+        return (
+          <div
+            className="absolute z-40 pointer-events-none glass-panel px-3 py-2 text-center rounded-lg"
+            style={{ left: tx, top: ty, width: TOOLTIP_W }}
+          >
+            <div className="text-[11px] font-medium text-foreground">{nodePos.contact.name}</div>
+            <div className="text-[10px] text-muted-foreground">{nodePos.contact.title}, {nodePos.contact.company}</div>
+            <div className="text-[9px] text-primary mt-0.5">{nodePos.contact.lastInteraction}</div>
+          </div>
+        );
+      })()}
 
       {/* Floating contact card */}
       <AnimatePresence>
@@ -236,6 +297,25 @@ const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContact
           />
         )}
       </AnimatePresence>
+
+      {/* Zoom controls */}
+      <div className="absolute bottom-4 right-4 flex flex-col gap-1 pointer-events-auto">
+        <button
+          onClick={() => setZoom(prev => Math.min(MAX_ZOOM, prev * (1 / 0.92)))}
+          className="w-8 h-8 rounded-md bg-[hsl(222,41%,14%)] border border-[hsl(222,20%,22%)] text-[hsl(214,32%,75%)] hover:text-white hover:border-[hsl(222,20%,35%)] flex items-center justify-center text-lg leading-none transition-colors"
+          title="Zoom in"
+        >+</button>
+        <button
+          onClick={() => setZoom(DEFAULT_ZOOM)}
+          className="w-8 h-8 rounded-md bg-[hsl(222,41%,14%)] border border-[hsl(222,20%,22%)] text-[hsl(214,32%,75%)] hover:text-white hover:border-[hsl(222,20%,35%)] flex items-center justify-center text-[10px] font-medium transition-colors"
+          title="Reset zoom"
+        >{Math.round(zoom * 100)}%</button>
+        <button
+          onClick={() => setZoom(prev => Math.max(MIN_ZOOM, prev * 0.92))}
+          className="w-8 h-8 rounded-md bg-[hsl(222,41%,14%)] border border-[hsl(222,20%,22%)] text-[hsl(214,32%,75%)] hover:text-white hover:border-[hsl(222,20%,35%)] flex items-center justify-center text-lg leading-none transition-colors"
+          title="Zoom out"
+        >−</button>
+      </div>
     </div>
   );
 };
