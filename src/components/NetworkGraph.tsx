@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Contact, DataSource, STROKE_COLORS } from '@/data/mockData';
 import FloatingContactCard from './FloatingContactCard';
@@ -17,9 +17,41 @@ interface NodePosition {
   contact: Contact;
 }
 
+const DEFAULT_ZOOM = 1;
+const MIN_ZOOM = 0.4;
+const MAX_ZOOM = 4;
+const SVG_W = 1000;
+const SVG_H = 800;
+const SVG_CX = 500;
+const SVG_CY = 400;
+
 const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContactId, onSelectContact }: NetworkGraphProps) => {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [floatingContact, setFloatingContact] = useState<{ contact: Contact; position: { x: number; y: number } } | null>(null);
+  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  // Non-passive wheel listener so we can preventDefault
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 0.92 : 1 / 0.92;
+      setZoom(prev => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev * factor)));
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, []);
+
+  const viewBox = useMemo(() => {
+    const vbW = SVG_W / zoom;
+    const vbH = SVG_H / zoom;
+    const vbX = SVG_CX - vbW / 2;
+    const vbY = SVG_CY - vbH / 2;
+    return `${vbX} ${vbY} ${vbW} ${vbH}`;
+  }, [zoom]);
 
   const filteredContacts = useMemo(
     () => contacts.filter((c) => activeSources[c.source]),
@@ -94,7 +126,7 @@ const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContact
   };
 
   return (
-    <div className="flex-1 relative overflow-hidden bg-background">
+    <div ref={containerRef} className="flex-1 relative overflow-hidden bg-background">
       {/* Ambient glow effects */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-primary/[0.03] blur-[100px]" />
@@ -102,7 +134,7 @@ const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContact
         <div className="absolute bottom-1/3 left-1/3 w-[250px] h-[250px] rounded-full bg-node-outlook/[0.04] blur-[80px]" />
       </div>
 
-      <svg className="w-full h-full" viewBox="0 0 1000 800" preserveAspectRatio="xMidYMid meet">
+      <svg ref={svgRef} className="w-full h-full" viewBox={viewBox} preserveAspectRatio="xMidYMid meet">
         {/* Grid pattern */}
         <defs>
           <pattern id="grid" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
@@ -236,6 +268,25 @@ const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContact
           />
         )}
       </AnimatePresence>
+
+      {/* Zoom controls */}
+      <div className="absolute bottom-4 right-4 flex flex-col gap-1 pointer-events-auto">
+        <button
+          onClick={() => setZoom(prev => Math.min(MAX_ZOOM, prev * (1 / 0.92)))}
+          className="w-8 h-8 rounded-md bg-[hsl(222,41%,14%)] border border-[hsl(222,20%,22%)] text-[hsl(214,32%,75%)] hover:text-white hover:border-[hsl(222,20%,35%)] flex items-center justify-center text-lg leading-none transition-colors"
+          title="Zoom in"
+        >+</button>
+        <button
+          onClick={() => setZoom(DEFAULT_ZOOM)}
+          className="w-8 h-8 rounded-md bg-[hsl(222,41%,14%)] border border-[hsl(222,20%,22%)] text-[hsl(214,32%,75%)] hover:text-white hover:border-[hsl(222,20%,35%)] flex items-center justify-center text-[10px] font-medium transition-colors"
+          title="Reset zoom"
+        >{Math.round(zoom * 100)}%</button>
+        <button
+          onClick={() => setZoom(prev => Math.max(MIN_ZOOM, prev * 0.92))}
+          className="w-8 h-8 rounded-md bg-[hsl(222,41%,14%)] border border-[hsl(222,20%,22%)] text-[hsl(214,32%,75%)] hover:text-white hover:border-[hsl(222,20%,35%)] flex items-center justify-center text-lg leading-none transition-colors"
+          title="Zoom out"
+        >−</button>
+      </div>
     </div>
   );
 };
