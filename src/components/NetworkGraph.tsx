@@ -117,11 +117,15 @@ const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContact
   const isHighlighted = (id: string) => highlightedIds.length === 0 || highlightedIds.includes(id);
 
   const handleNodeClick = (contact: Contact, event: React.MouseEvent) => {
-    const rect = (event.currentTarget as Element).closest('svg')?.getBoundingClientRect();
-    if (!rect) return;
-    const svgX = event.clientX - rect.left;
-    const svgY = event.clientY - rect.top;
-    setFloatingContact({ contact, position: { x: event.clientX + 20, y: event.clientY - 100 } });
+    const containerRect = containerRef.current?.getBoundingClientRect();
+    if (!containerRect) return;
+    const CARD_W = 320;
+    const CARD_H = 430;
+    const relX = event.clientX - containerRect.left + 20;
+    const relY = event.clientY - containerRect.top - 120;
+    const x = Math.max(8, Math.min(relX, containerRect.width - CARD_W));
+    const y = Math.max(8, Math.min(relY, containerRect.height - CARD_H));
+    setFloatingContact({ contact, position: { x, y } });
     onSelectContact(contact);
   };
 

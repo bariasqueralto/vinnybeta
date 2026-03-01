@@ -21,8 +21,8 @@ const FloatingContactCard = ({ contact, position, onClose }: FloatingContactCard
         transition={{ duration: 0.2 }}
         className="absolute glass-panel-solid p-5 w-[300px] rounded-2xl shadow-2xl border border-border/50"
         style={{
-          left: Math.min(position.x, window.innerWidth - 340),
-          top: Math.min(position.y, window.innerHeight - 400),
+          left: position.x,
+          top: position.y,
         }}
         onClick={(e) => e.stopPropagation()}
       >
