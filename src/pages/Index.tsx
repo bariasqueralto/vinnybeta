@@ -151,8 +151,9 @@ const Index = () => {
     } catch (err: unknown) {
       setIsTyping(false);
 
-      const isNoKey =
-        err instanceof Error && err.message === 'NO_API_KEY';
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const isNoKey = errMsg === 'NO_API_KEY';
+      const isRateLimit = errMsg.includes('429') || errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('rate');
 
       if (isNoKey) {
         setMessages((prev) => [
@@ -165,8 +166,18 @@ const Index = () => {
             timestamp,
           },
         ]);
+      } else if (isRateLimit) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: vinnyMsgId,
+            role: 'vinny',
+            content: "I'm getting a lot of messages — give me a moment and try again.",
+            timestamp,
+          },
+        ]);
       } else {
-        // Network/API error — fall back to keyword mock
+        // Other network/API error — fall back to keyword mock
         const { content, ids } = generateMockResponse(text);
         setMessages((prev) => [
           ...prev,
