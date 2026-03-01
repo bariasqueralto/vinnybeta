@@ -188,7 +188,7 @@ const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContact
         <g>
           <circle cx={500} cy={400} r={36} fill="hsl(222, 41%, 14%)" stroke="hsl(142, 60%, 50%)" strokeWidth={2} />
           <circle cx={500} cy={400} r={40} fill="none" stroke="hsl(142, 60%, 50%)" strokeWidth={0.5} strokeOpacity={0.3} />
-          <text x={500} y={405} textAnchor="middle" fill="hsl(142, 60%, 50%)" fontSize="16" fontWeight="700" fontFamily="Inter">AJ</text>
+          <text x={500} y={405} textAnchor="middle" fill="hsl(142, 60%, 50%)" fontSize="16" fontWeight="700" fontFamily="Inter">BA</text>
         </g>
 
         {/* Contact nodes */}

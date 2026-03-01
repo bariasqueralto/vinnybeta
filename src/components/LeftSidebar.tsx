@@ -20,7 +20,7 @@ const LeftSidebar = ({ activeSources, onToggleSource, messages, onSendMessage, i
         </div>
         <div>
           <div className="text-sm font-bold tracking-tight text-foreground">VINNY</div>
-          <div className="text-[10px] text-muted-foreground tracking-widest uppercase">Network AI</div>
+          <div className="text-[10px] text-muted-foreground tracking-widest uppercase">Visualize your network</div>
         </div>
       </div>
 
