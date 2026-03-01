@@ -247,18 +247,32 @@ const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContact
                   {getInitials(contact.name)}
                 </text>
 
-                {/* Name label */}
-                <text
-                  x={x} y={y + 44}
-                  textAnchor="middle"
-                  fill="hsl(214, 32%, 75%)"
-                  fontSize="11"
-                  fontWeight="500"
-                  fontFamily="Inter"
-                  opacity={hovered || selected ? 1 : 0.7}
-                >
-                  {contact.name.split(' ')[0]}
-                </text>
+                {/* Name label — placed radially away from center to avoid overlap */}
+                {(() => {
+                  const angle = Math.atan2(y - 400, x - 500);
+                  const lx = x + Math.cos(angle) * 44;
+                  const ly = y + Math.sin(angle) * 44;
+                  const anchor = Math.abs(Math.cos(angle)) > 0.4
+                    ? (Math.cos(angle) > 0 ? 'start' : 'end')
+                    : 'middle';
+                  const baseline = Math.sin(angle) > 0.3
+                    ? 'hanging'
+                    : Math.sin(angle) < -0.3 ? 'auto' : 'middle';
+                  return (
+                    <text
+                      x={lx} y={ly}
+                      textAnchor={anchor}
+                      dominantBaseline={baseline}
+                      fill="hsl(214, 32%, 75%)"
+                      fontSize="11"
+                      fontWeight="500"
+                      fontFamily="Inter"
+                      opacity={hovered || selected ? 1 : 0.7}
+                    >
+                      {contact.name.split(' ')[0]}
+                    </text>
+                  );
+                })()}
 
               </motion.g>
             );
