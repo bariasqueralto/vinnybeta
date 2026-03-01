@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import TopNav from '@/components/TopNav';
 import LeftSidebar from '@/components/LeftSidebar';
 import NetworkGraph from '@/components/NetworkGraph';
@@ -9,7 +9,9 @@ import {
   mockContacts,
   initialChatMessages,
 } from '@/data/mockData';
+import { askVinny } from '@/services/vinnyAI';
 
+// ─── Fallback mock response (no API key) ─────────────────────────────────────
 const INDUSTRY_KEYWORDS: Array<[string, string]> = [
   ['real estate', 'Real Estate'],
   ['property', 'Real Estate'],
@@ -22,6 +24,48 @@ const INDUSTRY_KEYWORDS: Array<[string, string]> = [
   ['software', 'Tech'],
 ];
 
+function generateMockResponse(text: string): { content: string; ids: string[] } {
+  const lower = text.toLowerCase();
+  let matched: Contact[] = [];
+
+  for (const [keyword, industry] of INDUSTRY_KEYWORDS) {
+    if (lower.includes(keyword)) {
+      matched = mockContacts.filter((c) => c.industry === industry);
+      const names = matched.map((c) => c.name).join(', ');
+      return {
+        content: `You have ${matched.length} ${industry} contact${matched.length !== 1 ? 's' : ''} — ${names}. I've highlighted them on your map.`,
+        ids: matched.map((c) => c.id),
+      };
+    }
+  }
+
+  matched = mockContacts.filter(
+    (c) =>
+      lower.includes(c.name.toLowerCase()) ||
+      lower.includes(c.company.toLowerCase())
+  );
+
+  if (matched.length === 1) {
+    const c = matched[0];
+    return {
+      content: `${c.name} is a ${c.title} at ${c.company}. ${c.howYouKnow}`,
+      ids: [c.id],
+    };
+  } else if (matched.length > 1) {
+    const names = matched.map((c) => c.name).join(', ');
+    return {
+      content: `Found ${matched.length} contacts matching that — ${names}.`,
+      ids: matched.map((c) => c.id),
+    };
+  }
+
+  return {
+    content: "I couldn't find a match in your network. Try asking about banking, tech, or real estate contacts.",
+    ids: [],
+  };
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 const Index = () => {
   const [activeSources, setActiveSources] = useState<Record<DataSource, boolean>>({
     outlook: true,
@@ -30,6 +74,8 @@ const Index = () => {
   const [messages, setMessages] = useState<ChatMessage[]>(initialChatMessages);
   const [highlightedIds, setHighlightedIds] = useState<string[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   const handleToggleSource = useCallback((source: DataSource) => {
     setActiveSources((prev) => ({ ...prev, [source]: !prev[source] }));
@@ -39,63 +85,96 @@ const Index = () => {
     setSelectedContact(contact);
   }, []);
 
-  const handleSendMessage = useCallback((text: string) => {
+  const handleSendMessage = useCallback(async (text: string) => {
+    // Cancel any in-flight request
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     const now = new Date();
     const timestamp = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
+    // Add user message
     const userMsg: ChatMessage = {
       id: `u-${Date.now()}`,
       role: 'user',
       content: text,
       timestamp,
     };
-
     setMessages((prev) => [...prev, userMsg]);
 
-    setTimeout(() => {
-      const lower = text.toLowerCase();
-      let matched: Contact[] = [];
-      let responseText = '';
+    // Show typing indicator
+    setIsTyping(true);
 
-      // Match by industry keyword
-      for (const [keyword, industry] of INDUSTRY_KEYWORDS) {
-        if (lower.includes(keyword)) {
-          matched = mockContacts.filter((c) => c.industry === industry);
-          const names = matched.map((c) => `**${c.name}**`).join(', ');
-          responseText = `Found **${matched.length} contact${matched.length !== 1 ? 's' : ''}** in ${industry} — highlighting them on your map now. You know ${names}.`;
-          break;
-        }
+    const vinnyMsgId = `v-${Date.now()}`;
+
+    try {
+      // Seed an empty streaming message (invisible until first token arrives)
+      let seeded = false;
+
+      const highlightIds = await askVinny(
+        text,
+        mockContacts,
+        (partialText) => {
+          if (!seeded) {
+            // First token — replace typing indicator with real message
+            seeded = true;
+            setIsTyping(false);
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: vinnyMsgId,
+                role: 'vinny',
+                content: partialText,
+                timestamp,
+                isStreaming: true,
+              },
+            ]);
+          } else {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === vinnyMsgId ? { ...m, content: partialText } : m
+              )
+            );
+          }
+        },
+        controller.signal
+      );
+
+      // Finalize — remove streaming flag
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === vinnyMsgId ? { ...m, isStreaming: false } : m
+        )
+      );
+      setHighlightedIds(highlightIds);
+    } catch (err: unknown) {
+      setIsTyping(false);
+
+      const isNoKey =
+        err instanceof Error && err.message === 'NO_API_KEY';
+
+      if (isNoKey) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: vinnyMsgId,
+            role: 'vinny',
+            content:
+              'To unlock real AI answers, add your Anthropic API key to `.env.local` as `VITE_ANTHROPIC_API_KEY=your-key-here`, then restart the dev server.',
+            timestamp,
+          },
+        ]);
+      } else {
+        // Network/API error — fall back to keyword mock
+        const { content, ids } = generateMockResponse(text);
+        setMessages((prev) => [
+          ...prev,
+          { id: vinnyMsgId, role: 'vinny', content, timestamp },
+        ]);
+        setHighlightedIds(ids);
       }
-
-      // Fall back to name or company match
-      if (matched.length === 0) {
-        matched = mockContacts.filter(
-          (c) =>
-            lower.includes(c.name.toLowerCase()) ||
-            lower.includes(c.company.toLowerCase())
-        );
-        if (matched.length === 1) {
-          const c = matched[0];
-          responseText = `**${c.name}** is a ${c.title} at **${c.company}** (${c.industry}). ${c.howYouKnow}`;
-        } else if (matched.length > 1) {
-          const names = matched.map((c) => `**${c.name}**`).join(', ');
-          responseText = `Found ${matched.length} contacts matching that — highlighting ${names} on your map.`;
-        }
-      }
-
-      const vinnyMsg: ChatMessage = {
-        id: `v-${Date.now()}`,
-        role: 'vinny',
-        content:
-          matched.length > 0
-            ? responseText
-            : "I searched your network but couldn't find a match. Try asking about **banking**, **tech**, or **real estate** contacts!",
-        timestamp,
-      };
-
-      setMessages((prev) => [...prev, vinnyMsg]);
-      setHighlightedIds(matched.map((c) => c.id));
-    }, 600);
+    }
   }, []);
 
   return (
@@ -107,6 +186,7 @@ const Index = () => {
           onToggleSource={handleToggleSource}
           messages={messages}
           onSendMessage={handleSendMessage}
+          isTyping={isTyping}
         />
         <NetworkGraph
           contacts={mockContacts}

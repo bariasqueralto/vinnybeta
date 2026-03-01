@@ -7,9 +7,10 @@ interface LeftSidebarProps {
   onToggleSource: (source: DataSource) => void;
   messages: ChatMessage[];
   onSendMessage: (message: string) => void;
+  isTyping?: boolean;
 }
 
-const LeftSidebar = ({ activeSources, onToggleSource, messages, onSendMessage }: LeftSidebarProps) => {
+const LeftSidebar = ({ activeSources, onToggleSource, messages, onSendMessage, isTyping }: LeftSidebarProps) => {
   return (
     <aside className="w-[300px] min-w-[300px] h-full border-r border-border/50 bg-card/40 backdrop-blur-xl flex flex-col">
       {/* Logo */}
@@ -43,7 +44,7 @@ const LeftSidebar = ({ activeSources, onToggleSource, messages, onSendMessage }:
 
       {/* Chat */}
       <div className="flex-1 flex flex-col overflow-hidden border-t border-border/50">
-        <ChatInterface messages={messages} onSendMessage={onSendMessage} />
+        <ChatInterface messages={messages} onSendMessage={onSendMessage} isTyping={isTyping} />
       </div>
     </aside>
   );

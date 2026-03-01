@@ -22,6 +22,7 @@ export interface ChatMessage {
   role: 'user' | 'vinny';
   content: string;
   timestamp: string;
+  isStreaming?: boolean;
 }
 
 export const SOURCE_COLORS: Record<DataSource, string> = {
