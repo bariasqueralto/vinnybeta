@@ -53,6 +53,20 @@ const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContact
     return `${vbX} ${vbY} ${vbW} ${vbH}`;
   }, [zoom]);
 
+  // Convert SVG coordinate space → container pixel space
+  const svgToContainer = useCallback((svgX: number, svgY: number) => {
+    if (!containerRef.current) return { x: 0, y: 0 };
+    const { width, height } = containerRef.current.getBoundingClientRect();
+    const vbW = SVG_W / zoom;
+    const vbH = SVG_H / zoom;
+    const vbX = SVG_CX - vbW / 2;
+    const vbY = SVG_CY - vbH / 2;
+    return {
+      x: (svgX - vbX) / vbW * width,
+      y: (svgY - vbY) / vbH * height,
+    };
+  }, [zoom]);
+
   const filteredContacts = useMemo(
     () => contacts.filter((c) => activeSources[c.source]),
     [contacts, activeSources]
@@ -246,21 +260,32 @@ const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContact
                   {contact.name.split(' ')[0]}
                 </text>
 
-                {/* Hover tooltip */}
-                {hovered && !floatingContact && (
-                  <foreignObject x={x - 100} y={y - 90} width={200} height={65}>
-                    <div className="glass-panel px-3 py-2 text-center">
-                      <div className="text-[11px] font-medium text-foreground">{contact.name}</div>
-                      <div className="text-[10px] text-muted-foreground">{contact.title}, {contact.company}</div>
-                      <div className="text-[9px] text-primary mt-0.5">{contact.lastInteraction}</div>
-                    </div>
-                  </foreignObject>
-                )}
               </motion.g>
             );
           })}
         </AnimatePresence>
       </svg>
+
+      {/* Hover tooltip — DOM overlay so it never overlaps SVG text */}
+      {hoveredId && !floatingContact && (() => {
+        const nodePos = nodePositions.find(n => n.contact.id === hoveredId);
+        if (!nodePos) return null;
+        const { x: px, y: py } = svgToContainer(nodePos.x, nodePos.y);
+        const TOOLTIP_W = 200;
+        const containerW = containerRef.current?.getBoundingClientRect().width ?? 500;
+        const tx = Math.max(8, Math.min(px - TOOLTIP_W / 2, containerW - TOOLTIP_W - 8));
+        const ty = Math.max(8, py - 82);
+        return (
+          <div
+            className="absolute z-40 pointer-events-none glass-panel px-3 py-2 text-center rounded-lg"
+            style={{ left: tx, top: ty, width: TOOLTIP_W }}
+          >
+            <div className="text-[11px] font-medium text-foreground">{nodePos.contact.name}</div>
+            <div className="text-[10px] text-muted-foreground">{nodePos.contact.title}, {nodePos.contact.company}</div>
+            <div className="text-[9px] text-primary mt-0.5">{nodePos.contact.lastInteraction}</div>
+          </div>
+        );
+      })()}
 
       {/* Floating contact card */}
       <AnimatePresence>
