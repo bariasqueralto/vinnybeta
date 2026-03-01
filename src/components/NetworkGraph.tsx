@@ -75,8 +75,8 @@ const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContact
   const nodePositions = useMemo((): NodePosition[] => {
     const cx = 500;
     const cy = 400;
-    const MIN_NODE_DIST = 68; // 28 + 28 + 12px gap
-    const MIN_CENTER_DIST = 76; // 36 (center node) + 28 + 12px gap
+    const MIN_NODE_DIST = 95; // 28 + 28 + gap large enough for name labels
+    const MIN_CENTER_DIST = 90; // 36 (center node) + 28 + label gap
 
     const positions = filteredContacts.map((contact, i) => {
       const strength = contact.relationshipStrength;
