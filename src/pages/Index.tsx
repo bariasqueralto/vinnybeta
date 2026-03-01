@@ -11,7 +11,7 @@ import {
 } from '@/data/mockData';
 import { askVinny } from '@/services/vinnyAI';
 
-// ─── Fallback mock response (no API key) ─────────────────────────────────────
+// ─── Fallback mock response (local contact intelligence) ─────────────────────
 const INDUSTRY_KEYWORDS: Array<[string, string]> = [
   ['real estate', 'Real Estate'],
   ['property', 'Real Estate'],
@@ -28,6 +28,23 @@ function generateMockResponse(text: string): { content: string; ids: string[] } 
   const lower = text.toLowerCase();
   let matched: Contact[] = [];
 
+  // 1) Explicit "all contacts" style queries
+  if (
+    lower.includes('all my contacts') ||
+    lower.includes('all contacts') ||
+    lower.includes('everyone i know') ||
+    lower.includes('entire network') ||
+    lower.includes('my whole network')
+  ) {
+    matched = mockContacts;
+    const names = matched.map((c) => c.name).join(', ');
+    return {
+      content: `You have ${matched.length} contacts in your network — ${names}. I've highlighted them all on your map.`,
+      ids: matched.map((c) => c.id),
+    };
+  }
+
+  // 2) Industry keywords (banking / tech / real estate)
   for (const [keyword, industry] of INDUSTRY_KEYWORDS) {
     if (lower.includes(keyword)) {
       matched = mockContacts.filter((c) => c.industry === industry);
@@ -39,11 +56,18 @@ function generateMockResponse(text: string): { content: string; ids: string[] } 
     }
   }
 
-  matched = mockContacts.filter(
-    (c) =>
-      lower.includes(c.name.toLowerCase()) ||
-      lower.includes(c.company.toLowerCase())
-  );
+  // 3) Smart name/company matching (handles "who is Olivia?", "Stripe", etc.)
+  matched = mockContacts.filter((c) => {
+    const nameLower = c.name.toLowerCase(); // e.g. "olivia huang"
+    const companyLower = c.company.toLowerCase(); // e.g. "blackstone"
+    const nameTokens = nameLower.split(/\s+/); // ["olivia", "huang"]
+
+    return (
+      lower.includes(companyLower) ||
+      lower.includes(nameLower) ||
+      nameTokens.some((token) => token.length > 2 && lower.includes(token))
+    );
+  });
 
   if (matched.length === 1) {
     const c = matched[0];
@@ -59,9 +83,21 @@ function generateMockResponse(text: string): { content: string; ids: string[] } 
     };
   }
 
+  // 4) Generic "contacts" queries — show everyone instead of an error
+  if (lower.includes('contact')) {
+    matched = mockContacts;
+    const names = matched.map((c) => c.name).join(', ');
+    return {
+      content: `Here are all your contacts: ${names}. I've highlighted them all on your map.`,
+      ids: matched.map((c) => c.id),
+    };
+  }
+
+  // 5) Final fallback — friendly message (no hard error)
+  const allNames = mockContacts.map((c) => c.name).join(', ');
   return {
-    content: "I couldn't find a match in your network. Try asking about banking, tech, or real estate contacts.",
-    ids: [],
+    content: `I couldn't find an exact match for that, but here are all your contacts: ${allNames}. I've highlighted them all on your map.`,
+    ids: mockContacts.map((c) => c.id),
   };
 }
 
