@@ -1,4 +1,4 @@
-import { Waypoints } from 'lucide-react';
+import { Waypoints, Loader2 } from 'lucide-react';
 import { DataSource, ChatMessage } from '@/data/mockData';
 import ChatInterface from './ChatInterface';
 
@@ -8,9 +8,12 @@ interface LeftSidebarProps {
   messages: ChatMessage[];
   onSendMessage: (message: string) => void;
   isTyping?: boolean;
+  isOutlookConnected: boolean;
+  isSyncing: boolean;
+  onOutlookConnect: () => void;
 }
 
-const LeftSidebar = ({ activeSources, onToggleSource, messages, onSendMessage, isTyping }: LeftSidebarProps) => {
+const LeftSidebar = ({ activeSources, onToggleSource, messages, onSendMessage, isTyping, isOutlookConnected, isSyncing, onOutlookConnect }: LeftSidebarProps) => {
   return (
     <aside className="w-[300px] min-w-[300px] h-full border-r border-border/50 bg-card/40 backdrop-blur-xl flex flex-col">
       {/* Logo */}
@@ -24,21 +27,26 @@ const LeftSidebar = ({ activeSources, onToggleSource, messages, onSendMessage, i
         </div>
       </div>
 
-      {/* Outlook Sync */}
+      {/* Outlook Connection */}
       <div className="px-4 mb-3">
         <button
-          onClick={() => onToggleSource('outlook')}
-          className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-secondary/60 transition-colors"
+          onClick={onOutlookConnect}
+          disabled={isSyncing}
+          className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-secondary/60 transition-colors disabled:opacity-50"
         >
           <div className="flex items-center gap-2.5">
-            <span className={`w-2.5 h-2.5 rounded-full bg-node-outlook ${activeSources.outlook ? 'opacity-100' : 'opacity-30'} transition-opacity`} />
-            <span className={`text-sm ${activeSources.outlook ? 'text-foreground' : 'text-muted-foreground'} transition-colors`}>
-              Outlook Sync
+            <span className={`w-2.5 h-2.5 rounded-full ${isOutlookConnected ? 'bg-node-outlook' : 'bg-muted-foreground/30'} transition-opacity`} />
+            <span className={`text-sm ${isOutlookConnected ? 'text-foreground' : 'text-muted-foreground'} transition-colors`}>
+              {isSyncing ? 'Syncing...' : isOutlookConnected ? 'Outlook Connected' : 'Connect Outlook'}
             </span>
           </div>
-          <div className={`w-8 h-[18px] rounded-full transition-colors relative ${activeSources.outlook ? 'bg-primary/30' : 'bg-secondary'}`}>
-            <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full transition-all ${activeSources.outlook ? 'left-[15px] bg-primary' : 'left-[2px] bg-muted-foreground/50'}`} />
-          </div>
+          {isSyncing ? (
+            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+          ) : (
+            <div className={`w-8 h-[18px] rounded-full transition-colors relative ${isOutlookConnected ? 'bg-primary/30' : 'bg-secondary'}`}>
+              <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full transition-all ${isOutlookConnected ? 'left-[15px] bg-primary' : 'left-[2px] bg-muted-foreground/50'}`} />
+            </div>
+          )}
         </button>
       </div>
 

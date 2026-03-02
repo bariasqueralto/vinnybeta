@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import TopNav from '@/components/TopNav';
 import LeftSidebar from '@/components/LeftSidebar';
 import NetworkGraph from '@/components/NetworkGraph';
@@ -10,6 +10,14 @@ import {
   initialChatMessages,
 } from '@/data/mockData';
 import { askVinny } from '@/services/vinnyAI';
+import { initializeMsal, msalInstance } from '@/services/msalConfig';
+import {
+  loginWithOutlook,
+  logoutFromOutlook,
+  getActiveAccount,
+  fetchEmails,
+  processEmailsToContacts,
+} from '@/services/outlookService';
 
 // ─── Fallback mock response (no API key) ─────────────────────────────────────
 const INDUSTRY_KEYWORDS: Array<[string, string]> = [
@@ -24,13 +32,13 @@ const INDUSTRY_KEYWORDS: Array<[string, string]> = [
   ['software', 'Tech'],
 ];
 
-function generateMockResponse(text: string): { content: string; ids: string[] } {
+function generateMockResponse(text: string, contactList: Contact[]): { content: string; ids: string[] } {
   const lower = text.toLowerCase();
   let matched: Contact[] = [];
 
   for (const [keyword, industry] of INDUSTRY_KEYWORDS) {
     if (lower.includes(keyword)) {
-      matched = mockContacts.filter((c) => c.industry === industry);
+      matched = contactList.filter((c) => c.industry === industry);
       const names = matched.map((c) => c.name).join(', ');
       return {
         content: `You have ${matched.length} ${industry} contact${matched.length !== 1 ? 's' : ''} — ${names}. I've highlighted them on your map.`,
@@ -39,16 +47,16 @@ function generateMockResponse(text: string): { content: string; ids: string[] } 
     }
   }
 
-  matched = mockContacts.filter(
+  matched = contactList.filter(
     (c) =>
       lower.includes(c.name.toLowerCase()) ||
-      lower.includes(c.company.toLowerCase())
+      (c.company && lower.includes(c.company.toLowerCase()))
   );
 
   if (matched.length === 1) {
     const c = matched[0];
     return {
-      content: `${c.name} is a ${c.title} at ${c.company}. ${c.howYouKnow}`,
+      content: `${c.name}${c.title ? ` is a ${c.title}` : ''}${c.company ? ` at ${c.company}` : ''}. ${c.howYouKnow}`,
       ids: [c.id],
     };
   } else if (matched.length > 1) {
@@ -60,7 +68,7 @@ function generateMockResponse(text: string): { content: string; ids: string[] } 
   }
 
   return {
-    content: "I couldn't find a match in your network. Try asking about banking, tech, or real estate contacts.",
+    content: "I couldn't find a match in your network. Try asking about a contact's name or company.",
     ids: [],
   };
 }
@@ -71,11 +79,71 @@ const Index = () => {
     outlook: true,
   });
 
+  const [contacts, setContacts] = useState<Contact[]>(mockContacts);
   const [messages, setMessages] = useState<ChatMessage[]>(initialChatMessages);
   const [highlightedIds, setHighlightedIds] = useState<string[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [isTyping, setIsTyping] = useState(false);
+  const [isOutlookConnected, setIsOutlookConnected] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [msalReady, setMsalReady] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Sync emails and update contacts
+  const syncOutlookContacts = useCallback(async () => {
+    setIsSyncing(true);
+    try {
+      const account = getActiveAccount();
+      if (!account) throw new Error('No active account');
+
+      const messages = await fetchEmails(200);
+      const outlookContacts = processEmailsToContacts(messages, account.username);
+
+      if (outlookContacts.length > 0) {
+        setContacts(outlookContacts);
+      }
+    } catch (err) {
+      console.error('Outlook sync failed:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, []);
+
+  // Initialize MSAL on mount and restore previous session
+  useEffect(() => {
+    initializeMsal().then(() => {
+      setMsalReady(true);
+      const accounts = msalInstance.getAllAccounts();
+      if (accounts.length > 0) {
+        msalInstance.setActiveAccount(accounts[0]);
+        setIsOutlookConnected(true);
+        syncOutlookContacts();
+      }
+    });
+  }, [syncOutlookContacts]);
+
+  const handleOutlookConnect = useCallback(async () => {
+    if (!msalReady) return;
+
+    if (isOutlookConnected) {
+      await logoutFromOutlook();
+      setIsOutlookConnected(false);
+      setContacts(mockContacts);
+      return;
+    }
+
+    try {
+      await loginWithOutlook();
+      const accounts = msalInstance.getAllAccounts();
+      if (accounts.length > 0) {
+        msalInstance.setActiveAccount(accounts[0]);
+      }
+      setIsOutlookConnected(true);
+      await syncOutlookContacts();
+    } catch (err) {
+      console.error('Outlook login failed:', err);
+    }
+  }, [msalReady, isOutlookConnected, syncOutlookContacts]);
 
   const handleToggleSource = useCallback((source: DataSource) => {
     setActiveSources((prev) => ({ ...prev, [source]: !prev[source] }));
@@ -114,7 +182,7 @@ const Index = () => {
 
       const highlightIds = await askVinny(
         text,
-        mockContacts,
+        contacts,
         (partialText) => {
           if (!seeded) {
             // First token — replace typing indicator with real message
@@ -178,7 +246,7 @@ const Index = () => {
         ]);
       } else {
         // Other network/API error — fall back to keyword mock
-        const { content, ids } = generateMockResponse(text);
+        const { content, ids } = generateMockResponse(text, contacts);
         setMessages((prev) => [
           ...prev,
           { id: vinnyMsgId, role: 'vinny', content, timestamp },
@@ -186,7 +254,7 @@ const Index = () => {
         setHighlightedIds(ids);
       }
     }
-  }, []);
+  }, [contacts]);
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden">
@@ -198,9 +266,12 @@ const Index = () => {
           messages={messages}
           onSendMessage={handleSendMessage}
           isTyping={isTyping}
+          isOutlookConnected={isOutlookConnected}
+          isSyncing={isSyncing}
+          onOutlookConnect={handleOutlookConnect}
         />
         <NetworkGraph
-          contacts={mockContacts}
+          contacts={contacts}
           activeSources={activeSources}
           highlightedIds={highlightedIds}
           selectedContactId={selectedContact?.id ?? null}
