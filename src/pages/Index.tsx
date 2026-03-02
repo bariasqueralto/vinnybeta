@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useGoogleLogin } from '@react-oauth/google';
+import VinnyBackground from '@/components/VinnyBackground';
 import TopNav from '@/components/TopNav';
 import LeftSidebar from '@/components/LeftSidebar';
 import NetworkGraph from '@/components/NetworkGraph';
@@ -262,6 +263,7 @@ const Index = () => {
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden">
+      <VinnyBackground />
       <TopNav />
       <div className="flex-1 flex overflow-hidden">
         <LeftSidebar

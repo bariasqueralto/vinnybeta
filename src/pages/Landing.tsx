@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { User, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import VinnyBackground from '@/components/VinnyBackground';
+import './Landing.css';
 
 const sheetsScriptUrl = (import.meta.env.VITE_GOOGLE_SHEETS_SCRIPT_URL || '').trim();
 const web3formsKey = (import.meta.env.VITE_WEB3FORMS_ACCESS_KEY || '').trim();
@@ -22,15 +23,40 @@ function getWaitlistPayload(email: string) {
   };
 }
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const Landing = () => {
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [shaking, setShaking] = useState(false);
+  const inputWrapRef = useRef<HTMLDivElement>(null);
+  const footerRef = useRef<HTMLElement>(null);
+  const bottomBarRef = useRef<HTMLElement>(null);
+
+  // Intersection observer for footer/bottom-bar reveal
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+          }
+        });
+      },
+      { threshold: 0.2, rootMargin: '0px 0px -50px 0px' }
+    );
+    if (footerRef.current) observer.observe(footerRef.current);
+    if (bottomBarRef.current) observer.observe(bottomBarRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = email.trim();
-    if (!trimmed) {
-      toast.error('Please enter your email.');
+
+    if (!EMAIL_REGEX.test(trimmed)) {
+      setShaking(true);
       return;
     }
 
@@ -56,8 +82,6 @@ const Landing = () => {
         }
         if (data.alreadyRegistered) {
           toast.success("You're already registered for early access!");
-          setEmail('');
-          return;
         }
       } else if (web3formsKey) {
         const res = await fetch('https://api.web3forms.com/submit', {
@@ -80,10 +104,22 @@ const Landing = () => {
         });
         if (!res.ok) throw new Error('Failed to submit');
       } else {
-        localStorage.setItem('vinny_early_access_email', trimmed);
+        const raw = localStorage.getItem('vinny_emails');
+        const arr = raw ? JSON.parse(raw) : [];
+        arr.push({ email: trimmed, date: new Date().toISOString() });
+        localStorage.setItem('vinny_emails', JSON.stringify(arr));
       }
-      toast.success("Thanks! We'll notify you when Vinny launches.");
+
+      setIsSuccess(true);
       setEmail('');
+
+      // Collapse the input
+      if (inputWrapRef.current) {
+        inputWrapRef.current.style.maxHeight = inputWrapRef.current.scrollHeight + 'px';
+        requestAnimationFrame(() => {
+          inputWrapRef.current?.classList.add('hidden');
+        });
+      }
     } catch (err) {
       console.error('[Vinny] Submit error:', err);
       toast.error(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
@@ -93,70 +129,80 @@ const Landing = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black flex flex-col">
-      {/* Top right: user icon (links to app) */}
-      <header className="absolute top-0 right-0 p-6">
-        <Link
-          to="/app"
-          className="w-10 h-10 rounded-full border border-zinc-600 flex items-center justify-center text-zinc-400 hover:border-zinc-500 hover:text-zinc-300 transition-colors"
-          aria-label="Go to app"
-        >
-          <User className="w-5 h-5" />
-        </Link>
-      </header>
+    <div className="landing-page">
+      <VinnyBackground />
 
-      {/* Centered content */}
-      <main className="flex-1 flex flex-col items-center justify-center px-6 py-20">
-        {/* Coming soon badge */}
-        <span className="mb-6 px-4 py-1.5 rounded-full bg-zinc-900 text-white text-sm font-medium">
-          Coming soon
-        </span>
+      {/* Avatar / app link */}
+      <Link to="/app" className="landing-avatar" aria-label="Go to app">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </svg>
+      </Link>
 
-        {/* Title */}
-        <h1 className="text-5xl md:text-6xl font-bold text-white tracking-tight mb-3">
-          Vinny
-        </h1>
-
-        {/* Tagline */}
-        <p className="text-xl md:text-2xl text-white mb-4">
-          Visualize your network.
-        </p>
-
-        {/* Supporting text */}
-        <p className="text-base text-zinc-400 mb-10 max-w-md text-center">
-          In a world of 9 billion people, why venture alone?
-        </p>
-
-        {/* Email form */}
-        <form onSubmit={handleSubmit} className="w-full max-w-md space-y-4">
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Enter your email"
-            className="w-full h-12 px-4 rounded-lg bg-zinc-900 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 focus:border-zinc-500 transition-colors"
-          />
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full h-12 rounded-lg bg-white text-black font-semibold hover:bg-zinc-100 transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <>
-                Get early access
-                <span aria-hidden>→</span>
-              </>
-            )}
-          </button>
-        </form>
-
-        {/* Disclaimer */}
-        <p className="mt-6 text-xs text-zinc-500 text-center max-w-sm">
-          No spam. We'll only notify you when Vinny launches.
-        </p>
+      {/* Hero */}
+      <main className="landing-hero">
+        <div className="landing-hero-inner">
+          <div className="landing-left">
+            <span className="landing-badge">Soon</span>
+            <h1 className="landing-headline">Vinny</h1>
+            <p className="landing-tagline">Visualize your network.</p>
+            <p className="landing-subtext">In a world of 9 billion people, why venture alone?</p>
+          </div>
+          <div className="landing-right">
+            <form className="landing-form-wrap" onSubmit={handleSubmit} noValidate>
+              <div
+                ref={inputWrapRef}
+                className="landing-input-collapse"
+              >
+                <input
+                  type="email"
+                  className={`landing-email-input${shaking ? ' shake' : ''}`}
+                  placeholder="Enter your email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onAnimationEnd={() => setShaking(false)}
+                />
+              </div>
+              <button
+                type="submit"
+                className={`landing-cta-btn${isSuccess ? ' success' : ''}`}
+                disabled={isSubmitting || isSuccess}
+              >
+                {isSubmitting ? (
+                  <div className="landing-spinner" />
+                ) : isSuccess ? (
+                  "You're on the list \u2713"
+                ) : (
+                  'Get Early Access \u2192'
+                )}
+              </button>
+            </form>
+            <p className="landing-microcopy">No spam. Only an email when Vinny launches.</p>
+          </div>
+        </div>
       </main>
+
+      {/* Footer stats */}
+      <section className="landing-footer-strip" ref={footerRef}>
+        <div className="landing-stats">
+          <div className="landing-stat">
+            <span className="landing-stat-label">Free</span>
+            <span className="landing-stat-desc">Early access at no cost</span>
+          </div>
+          <div className="landing-stat">
+            <span className="landing-stat-label">Your Network</span>
+            <span className="landing-stat-desc">Mapped & visualized</span>
+          </div>
+          <div className="landing-stat">
+            <span className="landing-stat-label">One email</span>
+            <span className="landing-stat-desc">That's all it takes</span>
+          </div>
+        </div>
+      </section>
+
+      <footer className="landing-bottom-bar" ref={bottomBarRef}>&copy; 2025 Vinny</footer>
     </div>
   );
 };
