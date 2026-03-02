@@ -1,4 +1,4 @@
-export type DataSource = 'outlook';
+export type DataSource = 'outlook' | 'gmail';
 
 export interface Contact {
   id: string;
@@ -27,14 +27,17 @@ export interface ChatMessage {
 
 export const SOURCE_COLORS: Record<DataSource, string> = {
   outlook: 'bg-node-outlook',
+  gmail: 'bg-node-gmail',
 };
 
 export const SOURCE_LABELS: Record<DataSource, string> = {
   outlook: 'Outlook',
+  gmail: 'Gmail',
 };
 
 export const STROKE_COLORS: Record<DataSource, string> = {
   outlook: 'hsl(142, 60%, 50%)',
+  gmail: 'hsl(4, 70%, 55%)',
 };
 
 export const mockContacts: Contact[] = [

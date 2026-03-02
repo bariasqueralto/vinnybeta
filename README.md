@@ -50,22 +50,24 @@ npm run dev
 - Click on "New codespace" to launch a new Codespace environment.
 - Edit files directly within the Codespace and commit and push your changes once you're done.
 
-## Outlook sync setup
+## Email sync setup (Outlook + Gmail → network bubbles)
 
-To sync contacts from Outlook, add these to `.env.local` (copy from `.env.example`):
+Sync emails you send and receive to build contact bubbles for Vinny. Both providers are supported.
 
-```
-VITE_AZURE_CLIENT_ID=your-azure-app-client-id
-VITE_AZURE_TENANT_ID=common
-```
+### Gmail
 
-1. Go to [Azure Portal → App registrations](https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade)
-2. **New registration** → name it (e.g. "Vinny"), select "Accounts in any organizational directory and personal Microsoft accounts"
-3. **Authentication** → **Add a platform** → **Single-page application** (not "Mobile and desktop")
-4. Redirect URI: `http://localhost:8080` (must match the URL you use to run the app)
-5. **API permissions** → Add → Microsoft Graph → Delegated: **User.Read**, **Mail.Read**
-6. Copy the **Application (client) ID** into `VITE_AZURE_CLIENT_ID`
-7. Restart the dev server after adding env vars
+1. Add to `.env.local`: `VITE_GOOGLE_CLIENT_ID=your-google-oauth-client-id`
+2. [Google Cloud Console](https://console.cloud.google.com/) → Create OAuth 2.0 Client ID (Web application)
+3. Authorized JavaScript origins: `http://localhost:5173` (or your dev port)
+4. Enable **Gmail API** in APIs & Services → Library
+
+### Outlook
+
+1. Add to `.env.local`: `VITE_AZURE_CLIENT_ID=your-azure-client-id`, `VITE_AZURE_TENANT_ID=common`
+2. [Azure Portal → App registrations](https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade)
+3. New registration → Authentication → Add platform **Single-page application**
+4. Redirect URI: `http://localhost:5173` (or your dev port)
+5. API permissions → Microsoft Graph → Delegated: **User.Read**, **Mail.Read**
 
 ## What technologies are used for this project?
 

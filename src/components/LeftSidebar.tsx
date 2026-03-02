@@ -9,12 +9,30 @@ interface LeftSidebarProps {
   onSendMessage: (message: string) => void;
   isTyping?: boolean;
   isOutlookConnected: boolean;
-  isSyncing: boolean;
+  isSyncingOutlook: boolean;
   onOutlookConnect: () => void;
   outlookError?: string | null;
+  isGmailConnected: boolean;
+  isSyncingGmail: boolean;
+  onGmailConnect: () => void;
+  gmailError?: string | null;
 }
 
-const LeftSidebar = ({ activeSources, onToggleSource, messages, onSendMessage, isTyping, isOutlookConnected, isSyncing, onOutlookConnect, outlookError }: LeftSidebarProps) => {
+const LeftSidebar = ({
+  activeSources,
+  onToggleSource,
+  messages,
+  onSendMessage,
+  isTyping,
+  isOutlookConnected,
+  isSyncingOutlook,
+  onOutlookConnect,
+  outlookError,
+  isGmailConnected,
+  isSyncingGmail,
+  onGmailConnect,
+  gmailError,
+}: LeftSidebarProps) => {
   return (
     <aside className="w-[300px] min-w-[300px] h-full border-r border-border/50 bg-card/40 backdrop-blur-xl flex flex-col">
       {/* Logo */}
@@ -28,29 +46,49 @@ const LeftSidebar = ({ activeSources, onToggleSource, messages, onSendMessage, i
         </div>
       </div>
 
-      {/* Outlook Connection */}
-      <div className="px-4 mb-3">
+      {/* Outlook + Gmail sync — emails you send & receive → network bubbles */}
+      <div className="px-4 mb-3 space-y-2">
         {outlookError && (
-          <p className="text-xs text-amber-600 dark:text-amber-400 mb-2 px-2 py-1.5 rounded-md bg-amber-500/10">
+          <p className="text-xs text-amber-600 dark:text-amber-400 px-2 py-1.5 rounded-md bg-amber-500/10">
             {outlookError}
+          </p>
+        )}
+        {gmailError && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 px-2 py-1.5 rounded-md bg-amber-500/10">
+            {gmailError}
           </p>
         )}
         <button
           onClick={onOutlookConnect}
-          disabled={isSyncing}
+          disabled={isSyncingOutlook}
           className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-secondary/60 transition-colors disabled:opacity-50"
         >
           <div className="flex items-center gap-2.5">
             <span className={`w-2.5 h-2.5 rounded-full ${isOutlookConnected ? 'bg-node-outlook' : 'bg-muted-foreground/30'} transition-opacity`} />
-            <span className={`text-sm ${isOutlookConnected ? 'text-foreground' : 'text-muted-foreground'} transition-colors`}>
-              {isSyncing ? 'Syncing...' : isOutlookConnected ? 'Outlook Connected' : 'Connect Outlook'}
+            <span className={`text-sm ${isOutlookConnected ? 'text-foreground' : 'text-muted-foreground'}`}>
+              {isSyncingOutlook ? 'Syncing...' : isOutlookConnected ? 'Outlook Connected' : 'Connect Outlook'}
             </span>
           </div>
-          {isSyncing ? (
-            <Loader2 className="w-4 h-4 animate-spin text-primary" />
-          ) : (
+          {isSyncingOutlook ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : (
             <div className={`w-8 h-[18px] rounded-full transition-colors relative ${isOutlookConnected ? 'bg-primary/30' : 'bg-secondary'}`}>
               <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full transition-all ${isOutlookConnected ? 'left-[15px] bg-primary' : 'left-[2px] bg-muted-foreground/50'}`} />
+            </div>
+          )}
+        </button>
+        <button
+          onClick={onGmailConnect}
+          disabled={isSyncingGmail}
+          className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-secondary/60 transition-colors disabled:opacity-50"
+        >
+          <div className="flex items-center gap-2.5">
+            <span className={`w-2.5 h-2.5 rounded-full ${isGmailConnected ? 'bg-node-gmail' : 'bg-muted-foreground/30'} transition-opacity`} />
+            <span className={`text-sm ${isGmailConnected ? 'text-foreground' : 'text-muted-foreground'}`}>
+              {isSyncingGmail ? 'Syncing...' : isGmailConnected ? 'Gmail Synced' : 'Sync Gmail'}
+            </span>
+          </div>
+          {isSyncingGmail ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : (
+            <div className={`w-8 h-[18px] rounded-full transition-colors relative ${isGmailConnected ? 'bg-primary/30' : 'bg-secondary'}`}>
+              <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full transition-all ${isGmailConnected ? 'left-[15px] bg-primary' : 'left-[2px] bg-muted-foreground/50'}`} />
             </div>
           )}
         </button>
