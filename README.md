@@ -50,6 +50,22 @@ npm run dev
 - Click on "New codespace" to launch a new Codespace environment.
 - Edit files directly within the Codespace and commit and push your changes once you're done.
 
+## Outlook sync setup
+
+To sync contacts from Outlook, add these to `.env.local` (copy from `.env.example`):
+
+```
+VITE_AZURE_CLIENT_ID=your-azure-app-client-id
+VITE_AZURE_TENANT_ID=common
+```
+
+1. Go to [Azure Portal → App registrations](https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade)
+2. **New registration** → name it (e.g. "Vinny"), select "Accounts in any organizational directory and personal Microsoft accounts"
+3. Redirect URI: **Web** → `http://localhost:5173` (or your dev port)
+4. **API permissions** → Add → Microsoft Graph → Delegated: **User.Read**, **Mail.Read**
+5. Copy the **Application (client) ID** into `VITE_AZURE_CLIENT_ID`
+6. Restart the dev server after adding env vars
+
 ## What technologies are used for this project?
 
 This project is built with:

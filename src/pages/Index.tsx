@@ -10,7 +10,7 @@ import {
   initialChatMessages,
 } from '@/data/mockData';
 import { askVinny } from '@/services/vinnyAI';
-import { initializeMsal, msalInstance } from '@/services/msalConfig';
+import { initializeMsal, msalInstance, isOutlookConfigured } from '@/services/msalConfig';
 import {
   loginWithOutlook,
   logoutFromOutlook,
@@ -33,6 +33,7 @@ const Index = () => {
   const [isOutlookConnected, setIsOutlookConnected] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [msalReady, setMsalReady] = useState(false);
+  const [outlookError, setOutlookError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   // Sync emails and update contacts
@@ -55,8 +56,12 @@ const Index = () => {
     }
   }, []);
 
-  // Initialize MSAL on mount and restore previous session
+  // Initialize MSAL on mount and restore previous session (only when configured)
   useEffect(() => {
+    if (!isOutlookConfigured) {
+      setMsalReady(true);
+      return;
+    }
     initializeMsal().then(() => {
       setMsalReady(true);
       const accounts = msalInstance.getAllAccounts();
@@ -78,6 +83,7 @@ const Index = () => {
       return;
     }
 
+    setOutlookError(null);
     try {
       await loginWithOutlook();
       const accounts = msalInstance.getAllAccounts();
@@ -87,7 +93,13 @@ const Index = () => {
       setIsOutlookConnected(true);
       await syncOutlookContacts();
     } catch (err) {
-      console.error('Outlook login failed:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg === 'OUTLOOK_NOT_CONFIGURED') {
+        setOutlookError('Add VITE_AZURE_CLIENT_ID to .env.local — see README for setup.');
+      } else {
+        console.error('Outlook login failed:', err);
+        setOutlookError('Login failed. Try again or check the console.');
+      }
     }
   }, [msalReady, isOutlookConnected, syncOutlookContacts]);
 
@@ -189,6 +201,7 @@ const Index = () => {
           isOutlookConnected={isOutlookConnected}
           isSyncing={isSyncing}
           onOutlookConnect={handleOutlookConnect}
+          outlookError={outlookError}
         />
         <NetworkGraph
           contacts={contacts}

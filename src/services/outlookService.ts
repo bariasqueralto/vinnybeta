@@ -1,9 +1,12 @@
-import { msalInstance, loginRequest } from './msalConfig';
+import { msalInstance, loginRequest, isOutlookConfigured } from './msalConfig';
 import { Contact } from '@/data/mockData';
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
 export async function loginWithOutlook(): Promise<void> {
+  if (!isOutlookConfigured) {
+    throw new Error('OUTLOOK_NOT_CONFIGURED');
+  }
   await msalInstance.loginPopup(loginRequest);
 }
 

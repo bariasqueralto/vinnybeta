@@ -11,9 +11,10 @@ interface LeftSidebarProps {
   isOutlookConnected: boolean;
   isSyncing: boolean;
   onOutlookConnect: () => void;
+  outlookError?: string | null;
 }
 
-const LeftSidebar = ({ activeSources, onToggleSource, messages, onSendMessage, isTyping, isOutlookConnected, isSyncing, onOutlookConnect }: LeftSidebarProps) => {
+const LeftSidebar = ({ activeSources, onToggleSource, messages, onSendMessage, isTyping, isOutlookConnected, isSyncing, onOutlookConnect, outlookError }: LeftSidebarProps) => {
   return (
     <aside className="w-[300px] min-w-[300px] h-full border-r border-border/50 bg-card/40 backdrop-blur-xl flex flex-col">
       {/* Logo */}
@@ -29,6 +30,11 @@ const LeftSidebar = ({ activeSources, onToggleSource, messages, onSendMessage, i
 
       {/* Outlook Connection */}
       <div className="px-4 mb-3">
+        {outlookError && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 mb-2 px-2 py-1.5 rounded-md bg-amber-500/10">
+            {outlookError}
+          </p>
+        )}
         <button
           onClick={onOutlookConnect}
           disabled={isSyncing}

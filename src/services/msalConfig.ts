@@ -1,9 +1,14 @@
 import { PublicClientApplication, Configuration, LogLevel } from '@azure/msal-browser';
 
+const clientId = (import.meta.env.VITE_AZURE_CLIENT_ID || '').trim();
+const tenantId = (import.meta.env.VITE_AZURE_TENANT_ID || 'common').trim();
+
+export const isOutlookConfigured = clientId.length > 0;
+
 const msalConfig: Configuration = {
   auth: {
-    clientId: import.meta.env.VITE_AZURE_CLIENT_ID || '',
-    authority: `https://login.microsoftonline.com/${import.meta.env.VITE_AZURE_TENANT_ID || 'common'}`,
+    clientId,
+    authority: `https://login.microsoftonline.com/${tenantId}`,
     redirectUri: window.location.origin,
   },
   cache: {
