@@ -50,6 +50,19 @@ npm run dev
 - Click on "New codespace" to launch a new Codespace environment.
 - Edit files directly within the Codespace and commit and push your changes once you're done.
 
+## Landing page waitlist (early access emails)
+
+**Web3Forms** (recommended, free): Emails sent directly to your inbox.
+
+1. Go to [web3forms.com](https://web3forms.com/) → **Get Access Key**
+2. Enter your email, receive the key
+3. Add to `.env.local`: `VITE_WEB3FORMS_ACCESS_KEY=your-key`
+4. Restart the dev server
+
+**Formspree** (alternative): `VITE_FORMSPREE_FORM_ID=xyzabc` — create a form at [formspree.io](https://formspree.io/).
+
+Without either, emails fall back to `localStorage` (browser only).
+
 ## Email sync setup (Outlook + Gmail → network bubbles)
 
 Sync emails you send and receive to build contact bubbles for Vinny. Both providers are supported.

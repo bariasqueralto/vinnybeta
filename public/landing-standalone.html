@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vinny — Visualize your network</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Syne:wght@700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0D1117;
+      --surface: #111827;
+      --blue: #3B9EFF;
+      --blue-bright: #00C9FF;
+      --green: #00E676;
+      --text: #F0F4F8;
+      --muted: #5A6A7A;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Background — Original (radial + network pattern + green glow) */
+    .bg-wrapper {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .bg-base {
+      position: absolute;
+      inset: 0;
+      background: var(--bg);
+    }
+    .bg-radial {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(
+        600px circle at 75% 50%,
+        rgba(59, 158, 255, 0.07),
+        transparent
+      );
+    }
+    .bg-network {
+      position: absolute;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Ccircle cx='10' cy='10' r='1' fill='%233B9EFF'/%3E%3Ccircle cx='30' cy='10' r='1' fill='%233B9EFF'/%3E%3Ccircle cx='50' cy='10' r='1' fill='%233B9EFF'/%3E%3Ccircle cx='10' cy='30' r='1' fill='%233B9EFF'/%3E%3Ccircle cx='30' cy='30' r='1' fill='%233B9EFF'/%3E%3Ccircle cx='50' cy='30' r='1' fill='%233B9EFF'/%3E%3Ccircle cx='10' cy='50' r='1' fill='%233B9EFF'/%3E%3Ccircle cx='30' cy='50' r='1' fill='%233B9EFF'/%3E%3Ccircle cx='50' cy='50' r='1' fill='%233B9EFF'/%3E%3Cline x1='10' y1='10' x2='30' y2='10' stroke='%233B9EFF' stroke-width='0.5'/%3E%3Cline x1='30' y1='10' x2='50' y2='10' stroke='%233B9EFF' stroke-width='0.5'/%3E%3Cline x1='10' y1='30' x2='30' y2='30' stroke='%233B9EFF' stroke-width='0.5'/%3E%3Cline x1='30' y1='30' x2='50' y2='30' stroke='%233B9EFF' stroke-width='0.5'/%3E%3Cline x1='10' y1='50' x2='30' y2='50' stroke='%233B9EFF' stroke-width='0.5'/%3E%3Cline x1='30' y1='50' x2='50' y2='50' stroke='%233B9EFF' stroke-width='0.5'/%3E%3Cline x1='10' y1='10' x2='10' y2='30' stroke='%233B9EFF' stroke-width='0.5'/%3E%3Cline x1='30' y1='10' x2='30' y2='30' stroke='%233B9EFF' stroke-width='0.5'/%3E%3Cline x1='50' y1='10' x2='50' y2='30' stroke='%233B9EFF' stroke-width='0.5'/%3E%3Cline x1='10' y1='30' x2='10' y2='50' stroke='%233B9EFF' stroke-width='0.5'/%3E%3Cline x1='30' y1='30' x2='30' y2='50' stroke='%233B9EFF' stroke-width='0.5'/%3E%3Cline x1='50' y1='30' x2='50' y2='50' stroke='%233B9EFF' stroke-width='0.5'/%3E%3C/g%3E%3C/svg%3E");
+      opacity: 0.04;
+    }
+    .bg-green-glow {
+      position: absolute;
+      bottom: -100px;
+      right: -100px;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(
+        circle,
+        rgba(0, 230, 118, 0.05) 0%,
+        transparent 70%
+      );
+    }
+
+    /* Avatar */
+    .avatar {
+      position: fixed;
+      top: 28px;
+      right: 32px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 1px solid rgba(59, 158, 255, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface);
+      z-index: 100;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .avatar:hover {
+      border-color: var(--blue);
+      background: rgba(59, 158, 255, 0.08);
+    }
+    .avatar svg {
+      width: 20px;
+      height: 20px;
+      stroke: var(--muted);
+    }
+
+    /* Main layout */
+    .hero {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      padding: 100px 64px 80px;
+    }
+    .hero-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 80px;
+      max-width: 1280px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* Left column */
+    .left {
+      flex: 0 1 55%;
+      padding-right: 24px;
+      animation: fadeUp 0.8s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+    }
+    .badge {
+      display: inline-block;
+      padding: 6px 12px;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      border-radius: 4px;
+      margin-bottom: 32px;
+      opacity: 0.8;
+    }
+    .headline {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(56px, 7vw, 96px);
+      font-weight: 800;
+      line-height: 1.02;
+      letter-spacing: -0.03em;
+      color: var(--text);
+    }
+    .tagline {
+      font-size: 28px;
+      font-weight: 400;
+      color: var(--muted);
+      margin-top: 12px;
+      letter-spacing: -0.01em;
+    }
+    .subtext {
+      font-size: 17px;
+      color: var(--muted);
+      max-width: 380px;
+      margin-top: 32px;
+      line-height: 1.6;
+      letter-spacing: 0.01em;
+    }
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Right column — Marriage Pact style: simple, minimal */
+    .right {
+      flex: 0 1 45%;
+      min-width: 320px;
+      animation: fadeUp 0.8s cubic-bezier(0.4, 0, 0.2, 1) 0.15s backwards;
+    }
+    .form-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .email-input {
+      width: 100%;
+      height: 52px;
+      border-radius: 8px;
+      background: var(--surface);
+      border: 1px solid rgba(90, 106, 122, 0.3);
+      padding: 0 18px;
+      font-size: 16px;
+      color: var(--text);
+      font-family: inherit;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .email-input::placeholder {
+      color: var(--muted);
+    }
+    .email-input:focus {
+      outline: none;
+      border-color: rgba(59, 158, 255, 0.5);
+      box-shadow: 0 0 0 2px rgba(59, 158, 255, 0.15);
+    }
+    .email-input.shake {
+      animation: shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+    }
+    .input-collapse {
+      overflow: hidden;
+      transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .input-collapse.hidden {
+      opacity: 0;
+      max-height: 0 !important;
+      margin-bottom: 0 !important;
+    }
+    .cta-btn {
+      width: 100%;
+      height: 52px;
+      border-radius: 8px;
+      border: 1px solid rgba(59, 158, 255, 0.4);
+      background: rgba(59, 158, 255, 0.12);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--blue);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .cta-btn:hover:not(.success) {
+      background: rgba(59, 158, 255, 0.18);
+      border-color: rgba(59, 158, 255, 0.5);
+    }
+    .cta-btn.success {
+      background: rgba(0, 230, 118, 0.12);
+      border: 1px solid rgba(0, 230, 118, 0.35);
+      color: var(--green);
+      cursor: default;
+    }
+    .microcopy {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 16px;
+    }
+
+    /* Footer strip */
+    .footer-strip {
+      position: relative;
+      z-index: 1;
+      padding: 72px 64px 32px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    .stats {
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      gap: 0;
+    }
+    .stat {
+      flex: 1;
+      text-align: center;
+      padding: 32px 40px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      border-radius: 16px;
+      border: 1px solid transparent;
+      transition: all 0.3s ease;
+    }
+    .stat:hover {
+      background: rgba(255, 255, 255, 0.02);
+      border-color: rgba(90, 106, 122, 0.2);
+    }
+    .stat:not(:last-child) {
+      border-right: 1px solid rgba(90, 106, 122, 0.15);
+    }
+    .stat-label {
+      font-family: 'Syne', sans-serif;
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--blue);
+      letter-spacing: -0.02em;
+    }
+    .stat-desc {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+      max-width: 160px;
+      letter-spacing: 0.01em;
+    }
+
+    /* Bottom bar */
+    .bottom-bar {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      padding: 32px 24px;
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 0.02em;
+      opacity: 0.6;
+      transform: translateY(8px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+    .bottom-bar.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .footer-strip {
+      position: relative;
+      z-index: 1;
+      padding: 72px 64px 32px;
+      max-width: 960px;
+      margin: 0 auto;
+      opacity: 0.85;
+      transform: translateY(12px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+    .footer-strip.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .hero {
+        padding: 100px 24px 60px;
+      }
+      .hero-inner {
+        flex-direction: column;
+        text-align: center;
+        gap: 48px;
+      }
+      .left {
+        flex: none;
+        padding-right: 0;
+      }
+      .subtext {
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .headline {
+        font-size: 64px;
+      }
+      .right {
+        width: 100%;
+        min-width: 0;
+      }
+      .footer-strip {
+        padding: 48px 24px 32px;
+      }
+      .stats {
+        flex-direction: column;
+        gap: 0;
+      }
+      .stat {
+        padding: 24px 20px;
+      }
+      .stat:not(:last-child) {
+        border-right: none;
+        border-bottom: 1px solid rgba(90, 106, 122, 0.15);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-wrapper">
+    <div class="bg-base"></div>
+    <div class="bg-radial"></div>
+    <div class="bg-network"></div>
+    <div class="bg-green-glow"></div>
+  </div>
+
+  <a href="/app" class="avatar" aria-label="Go to app">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+      <circle cx="12" cy="7" r="4"/>
+    </svg>
+  </a>
+
+  <main class="hero">
+    <div class="hero-inner">
+      <div class="left">
+        <span class="badge">Soon</span>
+        <h1 class="headline">Vinny</h1>
+        <p class="tagline">Visualize your network.</p>
+        <p class="subtext">In a world of 9 billion people, why venture alone?</p>
+      </div>
+      <div class="right">
+        <form class="form-wrap" id="signup-form" novalidate>
+          <div class="input-collapse" id="input-wrap">
+            <input
+              type="email"
+              class="email-input"
+              id="email-input"
+              placeholder="Enter your email"
+              autocomplete="email"
+            />
+          </div>
+          <button type="submit" class="cta-btn" id="cta-btn">Get Early Access →</button>
+        </form>
+        <p class="microcopy">No spam. Only an email when Vinny launches.</p>
+      </div>
+    </div>
+  </main>
+
+  <section class="footer-strip" id="footer-strip">
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-label">Free</span>
+        <span class="stat-desc">Early access at no cost</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Your Network</span>
+        <span class="stat-desc">Mapped & visualized</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">One email</span>
+        <span class="stat-desc">That's all it takes</span>
+      </div>
+    </div>
+  </section>
+
+  <footer class="bottom-bar" id="bottom-bar">© 2025 Vinny</footer>
+
+  <script>
+    (function() {
+      const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const STORAGE_KEY = 'vinny_emails';
+
+      const form = document.getElementById('signup-form');
+      const input = document.getElementById('email-input');
+      const inputWrap = document.getElementById('input-wrap');
+      const btn = document.getElementById('cta-btn');
+
+      function showSuccess() {
+        inputWrap.style.maxHeight = inputWrap.scrollHeight + 'px';
+        requestAnimationFrame(function() {
+          inputWrap.classList.add('hidden');
+        });
+        btn.textContent = "You're on the list ✓";
+        btn.classList.add('success');
+        btn.disabled = true;
+      }
+
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const email = input.value.trim();
+
+        if (!EMAIL_REGEX.test(email)) {
+          input.classList.add('shake');
+          input.addEventListener('animationend', function onEnd() {
+            input.classList.remove('shake');
+            input.removeEventListener('animationend', onEnd);
+          });
+          return;
+        }
+
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          const arr = raw ? JSON.parse(raw) : [];
+          arr.push({ email: email, date: new Date().toISOString() });
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+        } catch (err) {
+          console.error('Storage error:', err);
+        }
+
+        showSuccess();
+      });
+
+      // Reveal footer strip and bottom bar when scrolled into view
+      var footerStrip = document.getElementById('footer-strip');
+      var bottomBar = document.getElementById('bottom-bar');
+      var observer = new IntersectionObserver(function(entries) {
+        entries.forEach(function(entry) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+          }
+        });
+      }, { threshold: 0.2, rootMargin: '0px 0px -50px 0px' });
+      if (footerStrip) observer.observe(footerStrip);
+      if (bottomBar) observer.observe(bottomBar);
+    })();
+  </script>
+</body>
+</html>

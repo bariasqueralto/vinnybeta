@@ -1,15 +1,16 @@
+import { Link } from 'react-router-dom';
 import { Search, Bell, Waypoints } from 'lucide-react';
 
 const TopNav = () => {
   return (
     <header className="h-14 flex items-center justify-between px-5 border-b border-border/50 bg-card/40 backdrop-blur-xl z-50">
       {/* Logo */}
-      <div className="flex items-center gap-2.5">
+      <Link to="/" className="flex items-center gap-2.5 hover:opacity-90 transition-opacity">
         <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
           <Waypoints className="w-4.5 h-4.5 text-primary" />
         </div>
         <span className="text-lg font-bold tracking-tight text-foreground">VINNY</span>
-      </div>
+      </Link>
 
       {/* Search */}
       <div className="flex-1 max-w-md mx-8">
