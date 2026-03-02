@@ -61,10 +61,11 @@ VITE_AZURE_TENANT_ID=common
 
 1. Go to [Azure Portal → App registrations](https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade)
 2. **New registration** → name it (e.g. "Vinny"), select "Accounts in any organizational directory and personal Microsoft accounts"
-3. Redirect URI: **Web** → `http://localhost:5173` (or your dev port)
-4. **API permissions** → Add → Microsoft Graph → Delegated: **User.Read**, **Mail.Read**
-5. Copy the **Application (client) ID** into `VITE_AZURE_CLIENT_ID`
-6. Restart the dev server after adding env vars
+3. **Authentication** → **Add a platform** → **Single-page application** (not "Mobile and desktop")
+4. Redirect URI: `http://localhost:8080` (must match the URL you use to run the app)
+5. **API permissions** → Add → Microsoft Graph → Delegated: **User.Read**, **Mail.Read**
+6. Copy the **Application (client) ID** into `VITE_AZURE_CLIENT_ID`
+7. Restart the dev server after adding env vars
 
 ## What technologies are used for this project?
 

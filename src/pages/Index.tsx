@@ -94,11 +94,21 @@ const Index = () => {
       await syncOutlookContacts();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      const anyErr = err as { errorCode?: string; errorMessage?: string };
       if (msg === 'OUTLOOK_NOT_CONFIGURED') {
         setOutlookError('Add VITE_AZURE_CLIENT_ID to .env.local — see README for setup.');
+      } else if (
+        anyErr?.errorCode === 'redirect_uri_mismatch' ||
+        msg?.toLowerCase().includes('redirect') ||
+        msg?.includes('AADSTS50011')
+      ) {
+        setOutlookError(
+          `Redirect URI mismatch. In Azure Portal → Vinny → Authentication → Add platform "Single-page application" → Redirect URI: ${window.location.origin}`
+        );
       } else {
+        const detail = anyErr?.errorMessage || msg;
         console.error('Outlook login failed:', err);
-        setOutlookError('Login failed. Try again or check the console.');
+        setOutlookError(detail ? String(detail).slice(0, 150) : 'Login failed. Check the console for details.');
       }
     }
   }, [msalReady, isOutlookConnected, syncOutlookContacts]);
