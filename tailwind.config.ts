@@ -53,6 +53,7 @@ export default {
         node: {
           linkedin: "hsl(var(--node-linkedin))",
           outlook: "hsl(var(--node-outlook))",
+          gmail: "hsl(var(--node-gmail))",
           calendar: "hsl(var(--node-calendar))",
           phone: "hsl(var(--node-phone))",
           teams: "hsl(var(--node-teams))",

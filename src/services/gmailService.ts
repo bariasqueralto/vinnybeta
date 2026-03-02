@@ -1,0 +1,96 @@
+import { processEmailsToContacts, parseEmailHeaderString, type EmailMessage } from './emailContacts';
+import type { Contact } from '@/data/mockData';
+
+const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
+const EMAIL_SCOPE = 'https://www.googleapis.com/auth/userinfo.email';
+const clientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
+
+export const isGmailConfigured = clientId.length > 0;
+export const gmailScope = `${GMAIL_SCOPE} ${EMAIL_SCOPE}`;
+
+interface GmailMessageListResponse {
+  messages?: Array<{ id: string; threadId: string }>;
+  nextPageToken?: string;
+}
+
+interface GmailMessagePayload {
+  headers?: Array<{ name: string; value: string }>;
+  internalDate?: string;
+}
+
+interface GmailMessageResponse {
+  id: string;
+  payload?: GmailMessagePayload;
+}
+
+function getHeader(headers: Array<{ name: string; value: string }> | undefined, name: string): string {
+  if (!headers) return '';
+  const h = headers.find((x) => x.name.toLowerCase() === name.toLowerCase());
+  return h?.value || '';
+}
+
+/** Fetch Gmail messages (sent + received) and return contacts for the network graph */
+export async function fetchGmailMessages(
+  accessToken: string,
+  userEmail: string,
+  maxMessages: number = 200
+): Promise<Contact[]> {
+  const allMessages: EmailMessage[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const listUrl = new URL('https://www.googleapis.com/gmail/v1/users/me/messages');
+    listUrl.searchParams.set('maxResults', '100');
+    listUrl.searchParams.set('q', 'in:inbox OR in:sent'); // emails you received or sent
+    if (pageToken) listUrl.searchParams.set('pageToken', pageToken);
+
+    const listRes = await fetch(listUrl.toString(), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!listRes.ok) {
+      const err = await listRes.text();
+      throw new Error(`Gmail API error: ${listRes.status} ${listRes.statusText}. ${err}`);
+    }
+
+    const listData: GmailMessageListResponse = await listRes.json();
+    const messageIds = listData.messages?.map((m) => m.id) || [];
+
+    for (const id of messageIds) {
+      if (allMessages.length >= maxMessages) break;
+
+      const msgUrl = `https://www.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Cc&metadataHeaders=Date`;
+      const msgRes = await fetch(msgUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!msgRes.ok) continue; // skip problematic messages
+
+      const msgData: GmailMessageResponse = await msgRes.json();
+      const headers = msgData.payload?.headers || [];
+
+      const fromVal = getHeader(headers, 'From');
+      const toVal = getHeader(headers, 'To');
+      const ccVal = getHeader(headers, 'Cc');
+      const dateVal = getHeader(headers, 'Date') || msgData.payload?.internalDate;
+
+      const fromParsed = parseEmailHeaderString(fromVal);
+      const toParsed = parseEmailHeaderString(toVal);
+      const ccParsed = parseEmailHeaderString(ccVal);
+
+      const from = fromParsed[0];
+      const date = dateVal ? new Date(dateVal) : new Date();
+
+      allMessages.push({
+        from,
+        toRecipients: toParsed,
+        ccRecipients: ccParsed,
+        date,
+      });
+    }
+
+    pageToken = listData.nextPageToken;
+  } while (pageToken && allMessages.length < maxMessages);
+
+  return processEmailsToContacts(allMessages, userEmail, 'gmail');
+}

@@ -50,6 +50,38 @@ npm run dev
 - Click on "New codespace" to launch a new Codespace environment.
 - Edit files directly within the Codespace and commit and push your changes once you're done.
 
+## Landing page waitlist (early access emails)
+
+**Web3Forms** (recommended, free): Emails sent directly to your inbox.
+
+1. Go to [web3forms.com](https://web3forms.com/) → **Get Access Key**
+2. Enter your email, receive the key
+3. Add to `.env.local`: `VITE_WEB3FORMS_ACCESS_KEY=your-key`
+4. Restart the dev server
+
+**Formspree** (alternative): `VITE_FORMSPREE_FORM_ID=xyzabc` — create a form at [formspree.io](https://formspree.io/).
+
+Without either, emails fall back to `localStorage` (browser only).
+
+## Email sync setup (Outlook + Gmail → network bubbles)
+
+Sync emails you send and receive to build contact bubbles for Vinny. Both providers are supported.
+
+### Gmail
+
+1. Add to `.env.local`: `VITE_GOOGLE_CLIENT_ID=your-google-oauth-client-id`
+2. [Google Cloud Console](https://console.cloud.google.com/) → Create OAuth 2.0 Client ID (Web application)
+3. Authorized JavaScript origins: `http://localhost:5173` (or your dev port)
+4. Enable **Gmail API** in APIs & Services → Library
+
+### Outlook
+
+1. Add to `.env.local`: `VITE_AZURE_CLIENT_ID=your-azure-client-id`, `VITE_AZURE_TENANT_ID=common`
+2. [Azure Portal → App registrations](https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade)
+3. New registration → Authentication → Add platform **Single-page application**
+4. Redirect URI: `http://localhost:5173` (or your dev port)
+5. API permissions → Microsoft Graph → Delegated: **User.Read**, **Mail.Read**
+
 ## What technologies are used for this project?
 
 This project is built with:
