@@ -19,60 +19,6 @@ import {
   processEmailsToContacts,
 } from '@/services/outlookService';
 
-// ─── Fallback mock response (no API key) ─────────────────────────────────────
-const INDUSTRY_KEYWORDS: Array<[string, string]> = [
-  ['real estate', 'Real Estate'],
-  ['property', 'Real Estate'],
-  ['realty', 'Real Estate'],
-  ['banking', 'Banking'],
-  ['finance', 'Banking'],
-  ['bank', 'Banking'],
-  ['tech', 'Tech'],
-  ['technology', 'Tech'],
-  ['software', 'Tech'],
-];
-
-function generateMockResponse(text: string, contactList: Contact[]): { content: string; ids: string[] } {
-  const lower = text.toLowerCase();
-  let matched: Contact[] = [];
-
-  for (const [keyword, industry] of INDUSTRY_KEYWORDS) {
-    if (lower.includes(keyword)) {
-      matched = contactList.filter((c) => c.industry === industry);
-      const names = matched.map((c) => c.name).join(', ');
-      return {
-        content: `You have ${matched.length} ${industry} contact${matched.length !== 1 ? 's' : ''} — ${names}. I've highlighted them on your map.`,
-        ids: matched.map((c) => c.id),
-      };
-    }
-  }
-
-  matched = contactList.filter(
-    (c) =>
-      lower.includes(c.name.toLowerCase()) ||
-      (c.company && lower.includes(c.company.toLowerCase()))
-  );
-
-  if (matched.length === 1) {
-    const c = matched[0];
-    return {
-      content: `${c.name}${c.title ? ` is a ${c.title}` : ''}${c.company ? ` at ${c.company}` : ''}. ${c.howYouKnow}`,
-      ids: [c.id],
-    };
-  } else if (matched.length > 1) {
-    const names = matched.map((c) => c.name).join(', ');
-    return {
-      content: `Found ${matched.length} contacts matching that — ${names}.`,
-      ids: matched.map((c) => c.id),
-    };
-  }
-
-  return {
-    content: "I couldn't find a match in your network. Try asking about a contact's name or company.",
-    ids: [],
-  };
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 const Index = () => {
   const [activeSources, setActiveSources] = useState<Record<DataSource, boolean>>({
@@ -216,43 +162,17 @@ const Index = () => {
         )
       );
       setHighlightedIds(highlightIds);
-    } catch (err: unknown) {
+    } catch {
       setIsTyping(false);
-
-      const errMsg = err instanceof Error ? err.message : String(err);
-      const isNoKey = errMsg === 'NO_API_KEY';
-      const isRateLimit = errMsg.includes('429') || errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('rate');
-
-      if (isNoKey) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: vinnyMsgId,
-            role: 'vinny',
-            content:
-              'To unlock real AI answers, add your Gemini API key to `.env.local` as `VITE_GEMINI_API_KEY=your-key-here`, then restart the dev server.',
-            timestamp,
-          },
-        ]);
-      } else if (isRateLimit) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: vinnyMsgId,
-            role: 'vinny',
-            content: "I'm getting a lot of messages — give me a moment and try again.",
-            timestamp,
-          },
-        ]);
-      } else {
-        // Other network/API error — fall back to keyword mock
-        const { content, ids } = generateMockResponse(text, contacts);
-        setMessages((prev) => [
-          ...prev,
-          { id: vinnyMsgId, role: 'vinny', content, timestamp },
-        ]);
-        setHighlightedIds(ids);
-      }
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: vinnyMsgId,
+          role: 'vinny',
+          content: "Something went wrong — try asking me again.",
+          timestamp,
+        },
+      ]);
     }
   }, [contacts]);
 
