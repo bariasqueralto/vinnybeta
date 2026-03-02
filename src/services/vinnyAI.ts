@@ -67,7 +67,8 @@ function matchByName(text: string, contacts: Contact[]): Contact[] {
 function matchByCompany(text: string, contacts: Contact[]): Contact[] {
   const lower = text.toLowerCase();
   return contacts.filter((c) => {
-    const companyLower = c.company.toLowerCase();
+    const companyLower = (c.company || '').toLowerCase();
+    if (!companyLower) return false;
     if (lower.includes(companyLower)) return true;
     return companyLower
       .split(/\s+/)
@@ -86,7 +87,7 @@ function matchByLocation(text: string, contacts: Contact[]): Contact[] {
   const lower = text.toLowerCase();
   for (const [city, aliases] of Object.entries(LOCATION_ALIASES)) {
     if (aliases.some((a) => lower.includes(a))) {
-      return contacts.filter((c) => c.location.includes(city));
+      return contacts.filter((c) => (c.location || '').includes(city));
     }
   }
   return [];
@@ -131,7 +132,8 @@ function generateResponse(message: string, contacts: Contact[]): string {
 
   // ── All contacts / network overview ────────────────────────────────────────
   if (
-    /\b(all|everyone|every\s*one|every\s+contact|full\s+network|whole\s+network|show\s+me\s+every)\b/i.test(lower)
+    /\b(all|everyone|every\s*one|every\s+contact|full\s+network|whole\s+network|show\s+me\s+every)\b/i.test(lower) ||
+    /\b(all\s+my\s+contacts?|all\s+contacts?|show\s+me\s+all\s+my\s+contacts?)\b/i.test(lower)
   ) {
     const names = contacts.map((c) => c.name).join(', ');
     const ids = contacts.map((c) => c.id);
@@ -155,7 +157,7 @@ function generateResponse(message: string, contacts: Contact[]): string {
     return `Your strongest connections are ${desc}. These are the people you're tightest with in your network.${hl(top.map((c) => c.id))}`;
   }
 
-  // ── Reconnection suggestions ───────────────────────────────────────────────
+  // ── Reconnection suggestions ────────────────────────────────────────────────
   if (/\b(reconnect|reach\s+out|catch\s+up|re-?connect|haven'?t\s+(talk|spoke|connect))\b/i.test(lower)) {
     const sorted = [...contacts].sort((a, b) => recencyDays(b.lastInteraction) - recencyDays(a.lastInteraction));
     const stale = sorted.slice(0, 3);
@@ -218,7 +220,7 @@ function generateResponse(message: string, contacts: Contact[]): string {
   // ── Location search ────────────────────────────────────────────────────────
   const locationMatches = matchByLocation(message, contacts);
   if (locationMatches.length > 0) {
-    const location = locationMatches[0].location;
+    const location = locationMatches[0].location || 'Unknown';
     const names = locationMatches.map((c) => `${c.name} (${c.company})`).join(', ');
     return `You have ${locationMatches.length} contact${locationMatches.length !== 1 ? 's' : ''} in ${location} — ${names}.${hl(locationMatches.map((c) => c.id))}`;
   }
@@ -229,7 +231,8 @@ function generateResponse(message: string, contacts: Contact[]): string {
   }
 
   // ── Fallback ───────────────────────────────────────────────────────────────
-  return "I couldn't find a match in your network. Try asking about a contact by name, company, or industry like banking, tech, or real estate.";
+  const names = contacts.map((c) => c.name).join(', ');
+  return `I couldn't find an exact match, but here are all your contacts: ${names}. I've highlighted them on your map.${hl(contacts.map((c) => c.id))}`;
 }
 
 // ─── Main entry point ────────────────────────────────────────────────────────

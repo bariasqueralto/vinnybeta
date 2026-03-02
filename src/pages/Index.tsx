@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import TopNav from '@/components/TopNav';
 import LeftSidebar from '@/components/LeftSidebar';
 import NetworkGraph from '@/components/NetworkGraph';
@@ -10,6 +10,14 @@ import {
   initialChatMessages,
 } from '@/data/mockData';
 import { askVinny } from '@/services/vinnyAI';
+import { initializeMsal, msalInstance } from '@/services/msalConfig';
+import {
+  loginWithOutlook,
+  logoutFromOutlook,
+  getActiveAccount,
+  fetchEmails,
+  processEmailsToContacts,
+} from '@/services/outlookService';
 
 // ─── Component ────────────────────────────────────────────────────────────────
 const Index = () => {
@@ -17,11 +25,71 @@ const Index = () => {
     outlook: true,
   });
 
+  const [contacts, setContacts] = useState<Contact[]>(mockContacts);
   const [messages, setMessages] = useState<ChatMessage[]>(initialChatMessages);
   const [highlightedIds, setHighlightedIds] = useState<string[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [isTyping, setIsTyping] = useState(false);
+  const [isOutlookConnected, setIsOutlookConnected] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [msalReady, setMsalReady] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Sync emails and update contacts
+  const syncOutlookContacts = useCallback(async () => {
+    setIsSyncing(true);
+    try {
+      const account = getActiveAccount();
+      if (!account) throw new Error('No active account');
+
+      const messages = await fetchEmails(200);
+      const outlookContacts = processEmailsToContacts(messages, account.username);
+
+      if (outlookContacts.length > 0) {
+        setContacts(outlookContacts);
+      }
+    } catch (err) {
+      console.error('Outlook sync failed:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, []);
+
+  // Initialize MSAL on mount and restore previous session
+  useEffect(() => {
+    initializeMsal().then(() => {
+      setMsalReady(true);
+      const accounts = msalInstance.getAllAccounts();
+      if (accounts.length > 0) {
+        msalInstance.setActiveAccount(accounts[0]);
+        setIsOutlookConnected(true);
+        syncOutlookContacts();
+      }
+    });
+  }, [syncOutlookContacts]);
+
+  const handleOutlookConnect = useCallback(async () => {
+    if (!msalReady) return;
+
+    if (isOutlookConnected) {
+      await logoutFromOutlook();
+      setIsOutlookConnected(false);
+      setContacts(mockContacts);
+      return;
+    }
+
+    try {
+      await loginWithOutlook();
+      const accounts = msalInstance.getAllAccounts();
+      if (accounts.length > 0) {
+        msalInstance.setActiveAccount(accounts[0]);
+      }
+      setIsOutlookConnected(true);
+      await syncOutlookContacts();
+    } catch (err) {
+      console.error('Outlook login failed:', err);
+    }
+  }, [msalReady, isOutlookConnected, syncOutlookContacts]);
 
   const handleToggleSource = useCallback((source: DataSource) => {
     setActiveSources((prev) => ({ ...prev, [source]: !prev[source] }));
@@ -60,7 +128,7 @@ const Index = () => {
 
       const highlightIds = await askVinny(
         text,
-        mockContacts,
+        contacts,
         (partialText) => {
           if (!seeded) {
             // First token — replace typing indicator with real message
@@ -106,7 +174,7 @@ const Index = () => {
         },
       ]);
     }
-  }, []);
+  }, [contacts]);
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden">
@@ -118,9 +186,12 @@ const Index = () => {
           messages={messages}
           onSendMessage={handleSendMessage}
           isTyping={isTyping}
+          isOutlookConnected={isOutlookConnected}
+          isSyncing={isSyncing}
+          onOutlookConnect={handleOutlookConnect}
         />
         <NetworkGraph
-          contacts={mockContacts}
+          contacts={contacts}
           activeSources={activeSources}
           highlightedIds={highlightedIds}
           selectedContactId={selectedContact?.id ?? null}
