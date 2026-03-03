@@ -9,6 +9,10 @@ interface NetworkGraphProps {
   highlightedIds: string[];
   selectedContactId: string | null;
   onSelectContact: (contact: Contact) => void;
+  /** Has the user completed at least one real email sync (Gmail/Outlook)? */
+  hasSyncedOnce: boolean;
+  /** Are we currently showing a real email-driven network (vs mock)? */
+  hasEmailContacts: boolean;
 }
 
 interface NodePosition {
@@ -25,7 +29,15 @@ const SVG_H = 800;
 const SVG_CX = 500;
 const SVG_CY = 400;
 
-const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContactId, onSelectContact }: NetworkGraphProps) => {
+const NetworkGraph = ({
+  contacts,
+  activeSources,
+  highlightedIds,
+  selectedContactId,
+  onSelectContact,
+  hasSyncedOnce,
+  hasEmailContacts,
+}: NetworkGraphProps) => {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [floatingContact, setFloatingContact] = useState<{ contact: Contact; position: { x: number; y: number } } | null>(null);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
@@ -128,7 +140,37 @@ const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContact
     return name.split(' ').map(n => n[0]).join('').slice(0, 2);
   }, []);
 
-  const isHighlighted = (id: string) => highlightedIds.length === 0 || highlightedIds.includes(id);
+  const hasRealEmailNetwork = hasSyncedOnce && hasEmailContacts;
+
+  const isHighlighted = (id: string) => {
+    if (!hasRealEmailNetwork) return false;
+    if (highlightedIds.length === 0) return false;
+    return highlightedIds.includes(id);
+  };
+
+  const visibleNodePositions = useMemo(() => {
+    // Before any real sync: no bubbles, only BA
+    if (!hasSyncedOnce) return [];
+
+    // After sync, but no specific highlights yet: still no bubbles
+    if (hasRealEmailNetwork && highlightedIds.length === 0) return [];
+
+    // If somehow we have synced but aren't in "real network" mode, fall back to none
+    if (!hasRealEmailNetwork) return [];
+
+    const idSet = new Set(highlightedIds);
+    return nodePositions.filter(({ contact }) => idSet.has(contact.id));
+  }, [nodePositions, hasSyncedOnce, hasRealEmailNetwork, highlightedIds]);
+
+  const [justActivatedCenter, setJustActivatedCenter] = useState(false);
+
+  useEffect(() => {
+    if (hasSyncedOnce) {
+      setJustActivatedCenter(true);
+      const t = setTimeout(() => setJustActivatedCenter(false), 1400);
+      return () => clearTimeout(t);
+    }
+  }, [hasSyncedOnce]);
 
   const handleNodeClick = (contact: Contact, event: React.MouseEvent) => {
     const containerRect = containerRef.current?.getBoundingClientRect();
@@ -168,7 +210,7 @@ const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContact
         <circle cx="500" cy="400" r="250" fill="url(#centerGlow)" />
 
         {/* Connection lines */}
-        {nodePositions.map(({ x, y, contact }) => (
+        {visibleNodePositions.map(({ x, y, contact }) => (
           <line
             key={`line-${contact.id}`}
             x1={500} y1={400} x2={x} y2={y}
@@ -186,14 +228,60 @@ const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContact
 
         {/* Center node (user) */}
         <g>
-          <circle cx={500} cy={400} r={36} fill="hsl(222, 41%, 14%)" stroke="hsl(142, 60%, 50%)" strokeWidth={2} />
-          <circle cx={500} cy={400} r={40} fill="none" stroke="hsl(142, 60%, 50%)" strokeWidth={0.5} strokeOpacity={0.3} />
-          <text x={500} y={405} textAnchor="middle" fill="hsl(142, 60%, 50%)" fontSize="16" fontWeight="700" fontFamily="Inter">BA</text>
+          {/* Soft pulsing outline while waiting for first sync */}
+          {!hasSyncedOnce && (
+            <motion.circle
+              cx={500}
+              cy={400}
+              r={42}
+              fill="none"
+              stroke="hsl(222, 20%, 32%)"
+              strokeWidth={1.2}
+              animate={{ opacity: [0.25, 0.8, 0.25] }}
+              transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          )}
+
+          {/* One-time activation glow when sync completes */}
+          {justActivatedCenter && (
+            <motion.circle
+              cx={500}
+              cy={400}
+              r={44}
+              fill="none"
+              stroke="hsl(142, 60%, 55%)"
+              strokeWidth={2}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: [0.85, 0], scale: [0.8, 1.4] }}
+              transition={{ duration: 1.2, ease: 'easeOut' }}
+            />
+          )}
+
+          <motion.circle
+            cx={500}
+            cy={400}
+            r={36}
+            fill={hasSyncedOnce ? 'hsl(222, 41%, 14%)' : 'hsl(222, 41%, 10%)'}
+            stroke={hasSyncedOnce ? 'hsl(142, 60%, 50%)' : 'hsl(222, 20%, 32%)'}
+            strokeWidth={2}
+            animate={hasSyncedOnce ? { boxShadow: ['0 0 0px rgba(0,0,0,0)', '0 0 28px rgba(45, 212, 191, 0.5)', '0 0 0px rgba(0,0,0,0)'] } : {}}
+            transition={{ duration: 1.2 }}
+          />
+          <circle
+            cx={500}
+            cy={400}
+            r={40}
+            fill="none"
+            stroke={hasSyncedOnce ? 'hsl(142, 60%, 50%)' : 'hsl(222, 20%, 28%)'}
+            strokeWidth={0.5}
+            strokeOpacity={hasSyncedOnce ? 0.3 : 0.4}
+          />
+          <text x={500} y={405} textAnchor="middle" fill={hasSyncedOnce ? 'hsl(142, 60%, 50%)' : 'hsl(222, 20%, 60%)'} fontSize="16" fontWeight="700" fontFamily="Inter">BA</text>
         </g>
 
         {/* Contact nodes */}
         <AnimatePresence>
-          {nodePositions.map(({ x, y, contact }) => {
+          {visibleNodePositions.map(({ x, y, contact }) => {
             const highlighted = isHighlighted(contact.id);
             const hovered = hoveredId === contact.id;
             const selected = selectedContactId === contact.id;
@@ -268,7 +356,7 @@ const NetworkGraph = ({ contacts, activeSources, highlightedIds, selectedContact
 
       {/* Hover tooltip — DOM overlay so it never overlaps SVG text */}
       {hoveredId && !floatingContact && (() => {
-        const nodePos = nodePositions.find(n => n.contact.id === hoveredId);
+        const nodePos = visibleNodePositions.find(n => n.contact.id === hoveredId);
         if (!nodePos) return null;
         const { x: px, y: py } = svgToContainer(nodePos.x, nodePos.y);
         const TOOLTIP_W = 200;

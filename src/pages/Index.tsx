@@ -68,6 +68,8 @@ const Index = () => {
   const [msalReady, setMsalReady] = useState(false);
   const [contactStore, setContactStore] = useState<ContactStoreData | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const currentVinnyMsgIdRef = useRef<string | null>(null);
+  const [hasSyncedOnce, setHasSyncedOnce] = useState(false);
 
   const contacts = useMemo(() => {
     if (isOutlookConnected || isGmailConnected) {
@@ -204,6 +206,8 @@ const Index = () => {
 
         setGmailContacts(fetchedContacts);
         setIsGmailConnected(true);
+        // Treat first successful Gmail sync as the moment the network "turns on"
+        if (fetchedContacts.length > 0) setHasSyncedOnce(true);
 
         // Run LLM enrichment in background (non-blocking)
         runEnrichment(store);
@@ -261,6 +265,7 @@ const Index = () => {
     setIsTyping(true);
 
     const vinnyMsgId = `v-${Date.now()}`;
+    currentVinnyMsgIdRef.current = vinnyMsgId;
 
     try {
       // Seed an empty streaming message (invisible until first token arrives)
@@ -302,9 +307,11 @@ const Index = () => {
           m.id === vinnyMsgId ? { ...m, isStreaming: false } : m
         )
       );
+      currentVinnyMsgIdRef.current = null;
       setHighlightedIds(highlightIds);
     } catch {
       setIsTyping(false);
+      currentVinnyMsgIdRef.current = null;
       setMessages((prev) => [
         ...prev,
         {
@@ -317,6 +324,24 @@ const Index = () => {
     }
   }, [contacts, contactStore]);
 
+  const handleStopMessage = useCallback(() => {
+    // Abort any in-flight LLM stream
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setIsTyping(false);
+
+    const currentId = currentVinnyMsgIdRef.current;
+    if (currentId) {
+      // Mark the current streaming message as finished so input re-enables
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === currentId ? { ...m, isStreaming: false } : m
+        )
+      );
+      currentVinnyMsgIdRef.current = null;
+    }
+  }, []);
+
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden">
       <VinnyBackground />
@@ -328,6 +353,7 @@ const Index = () => {
           messages={messages}
           onSendMessage={handleSendMessage}
           isTyping={isTyping}
+          onStopChat={handleStopMessage}
           isOutlookConnected={isOutlookConnected}
           isSyncingOutlook={isSyncingOutlook}
           onOutlookConnect={handleOutlookConnect}
@@ -343,6 +369,8 @@ const Index = () => {
           highlightedIds={highlightedIds}
           selectedContactId={selectedContact?.id ?? null}
           onSelectContact={handleSelectContact}
+          hasSyncedOnce={hasSyncedOnce}
+          hasEmailContacts={isGmailConnected}
         />
       </div>
     </div>

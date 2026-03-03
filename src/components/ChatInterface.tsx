@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles } from 'lucide-react';
+import { Send, Sparkles, Square } from 'lucide-react';
 import { ChatMessage } from '@/data/mockData';
 
 interface ChatInterfaceProps {
   messages: ChatMessage[];
   onSendMessage: (message: string) => void;
   isTyping?: boolean;
+  onStop?: () => void;
 }
 
 // Render **bold** markdown and plain text
@@ -36,7 +37,7 @@ const StreamingCursor = () => (
   />
 );
 
-const ChatInterface = ({ messages, onSendMessage, isTyping }: ChatInterfaceProps) => {
+const ChatInterface = ({ messages, onSendMessage, isTyping, onStop }: ChatInterfaceProps) => {
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -117,6 +118,17 @@ const ChatInterface = ({ messages, onSendMessage, isTyping }: ChatInterfaceProps
             placeholder={isBusy ? 'Vinny is thinking…' : 'Ask Vinny anything about your network…'}
             className="flex-1 h-9 px-3.5 rounded-lg bg-secondary/60 border border-border/50 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           />
+          {onStop && (
+            <button
+              type="button"
+              onClick={() => isBusy && onStop()}
+              disabled={!isBusy}
+              className="h-9 px-2 rounded-lg border border-border/60 text-[11px] text-muted-foreground hover:bg-secondary/70 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+            >
+              <Square className="w-3 h-3" />
+              <span>Stop</span>
+            </button>
+          )}
           <button
             onClick={handleSend}
             disabled={isBusy || !input.trim()}

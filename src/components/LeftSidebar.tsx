@@ -8,6 +8,7 @@ interface LeftSidebarProps {
   messages: ChatMessage[];
   onSendMessage: (message: string) => void;
   isTyping?: boolean;
+  onStopChat?: () => void;
   isOutlookConnected: boolean;
   isSyncingOutlook: boolean;
   onOutlookConnect: () => void;
@@ -24,6 +25,7 @@ const LeftSidebar = ({
   messages,
   onSendMessage,
   isTyping,
+  onStopChat,
   isOutlookConnected,
   isSyncingOutlook,
   onOutlookConnect,
@@ -100,7 +102,12 @@ const LeftSidebar = ({
 
       {/* Chat */}
       <div className="flex-1 flex flex-col overflow-hidden border-t border-border/50">
-        <ChatInterface messages={messages} onSendMessage={onSendMessage} isTyping={isTyping} />
+        <ChatInterface
+          messages={messages}
+          onSendMessage={onSendMessage}
+          isTyping={isTyping}
+          onStop={onStopChat}
+        />
       </div>
     </aside>
   );
