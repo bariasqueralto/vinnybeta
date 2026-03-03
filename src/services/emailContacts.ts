@@ -6,6 +6,8 @@ export interface EmailMessage {
   toRecipients: Array<{ name: string; email: string }>;
   ccRecipients: Array<{ name: string; email: string }>;
   date: Date;
+  subject?: string;
+  snippet?: string;
 }
 
 export type EmailSource = 'outlook' | 'gmail';

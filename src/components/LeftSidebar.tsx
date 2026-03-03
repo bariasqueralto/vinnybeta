@@ -46,18 +46,21 @@ const LeftSidebar = ({
         </div>
       </div>
 
-      {/* Outlook + Gmail sync — emails you send & receive → network bubbles */}
+      {/* Email sync — emails you send & receive → network bubbles */}
       <div className="px-4 mb-3 space-y-2">
+        {/* TODO: Outlook error display — uncomment when Outlook sync is re-enabled
         {outlookError && (
           <p className="text-xs text-amber-600 dark:text-amber-400 px-2 py-1.5 rounded-md bg-amber-500/10">
             {outlookError}
           </p>
         )}
+        */}
         {gmailError && (
           <p className="text-xs text-amber-600 dark:text-amber-400 px-2 py-1.5 rounded-md bg-amber-500/10">
             {gmailError}
           </p>
         )}
+        {/* TODO: Outlook connect button — uncomment when Azure credentials are configured
         <button
           onClick={onOutlookConnect}
           disabled={isSyncingOutlook}
@@ -75,6 +78,7 @@ const LeftSidebar = ({
             </div>
           )}
         </button>
+        */}
         <button
           onClick={onGmailConnect}
           disabled={isSyncingGmail}
