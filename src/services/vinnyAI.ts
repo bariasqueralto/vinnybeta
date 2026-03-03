@@ -327,7 +327,7 @@ export async function askVinny(
   // LLM path — use Gemini with email context
   try {
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       systemInstruction: SYSTEM_PROMPT,
     });
     const prompt = buildPrompt(userMessage, contacts, contactStore);
@@ -348,11 +348,9 @@ export async function askVinny(
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     console.error('Gemini API error:', errMsg, err);
-    // Show the error to the user so we can diagnose
-    const errorText = `[Gemini error: ${errMsg}] Falling back to basic mode.\n\n`;
+    // Fall back to rule-based response
     const fullResponse = generateResponseLegacy(userMessage, contacts);
-    const displayText = errorText + stripHighlight(fullResponse);
-    await streamText(displayText, onToken, signal);
+    await streamText(stripHighlight(fullResponse), onToken, signal);
     return parseHighlightIds(fullResponse);
   }
 }

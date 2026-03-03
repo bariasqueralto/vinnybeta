@@ -58,7 +58,7 @@ export async function enrichContactProfile(
     return { ...profile, enriched: true, enrichedAt: new Date().toISOString() };
   }
 
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
   const prompt = buildEnrichmentPrompt(profile);
 
   const result = await model.generateContent(prompt);
