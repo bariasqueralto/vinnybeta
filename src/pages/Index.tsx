@@ -21,6 +21,15 @@ import {
   fetchEmails,
   processEmailsToContacts,
 } from '@/services/outlookService';
+import {
+  type ContactStoreData,
+  buildContactProfiles,
+  saveContactStore,
+  loadContactStore,
+  getSavedUserEmail,
+  getContactsFromStore,
+} from '@/services/contactStore';
+import { enrichAllContacts } from '@/services/contactEnrichment';
 
 /** Merge contacts from multiple sources, deduping by email (keep higher strength) */
 function mergeContacts(bySource: Record<string, Contact[]>): Contact[] {
@@ -57,6 +66,7 @@ const Index = () => {
   const [outlookError, setOutlookError] = useState<string | null>(null);
   const [gmailError, setGmailError] = useState<string | null>(null);
   const [msalReady, setMsalReady] = useState(false);
+  const [contactStore, setContactStore] = useState<ContactStoreData | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const contacts = useMemo(() => {
@@ -69,6 +79,37 @@ const Index = () => {
     }
     return mockContacts;
   }, [isOutlookConnected, isGmailConnected, outlookContacts, gmailContacts]);
+
+  // Restore contacts from localStorage on mount
+  useEffect(() => {
+    const savedEmail = getSavedUserEmail();
+    if (!savedEmail) return;
+    const saved = loadContactStore(savedEmail);
+    if (saved) {
+      setContactStore(saved);
+      const restoredContacts = getContactsFromStore(saved);
+      if (restoredContacts.length > 0) {
+        setGmailContacts(restoredContacts);
+        setIsGmailConnected(true);
+      }
+    }
+  }, []);
+
+  /** Run background enrichment and update state as contacts are enriched */
+  const runEnrichment = useCallback(async (store: ContactStoreData) => {
+    try {
+      const enriched = await enrichAllContacts(store, (_done, _total) => {
+        // Could show progress in UI here if desired
+      });
+      setContactStore(enriched);
+      const updatedContacts = getContactsFromStore(enriched);
+      if (updatedContacts.length > 0) {
+        setGmailContacts(updatedContacts);
+      }
+    } catch (err) {
+      console.warn('Background enrichment failed:', err);
+    }
+  }, []);
 
   const syncOutlookContacts = useCallback(async () => {
     setIsSyncingOutlook(true);
@@ -149,9 +190,23 @@ const Index = () => {
         });
         const profile = profileRes.ok ? await profileRes.json() : { email: '' };
         const userEmail = profile.email || '';
-        const next = await fetchGmailMessages(tokenResponse.access_token, userEmail);
-        setGmailContacts(next);
+
+        // Fetch messages with enriched data (subjects + snippets)
+        const { contacts: fetchedContacts, messages: rawMessages } = await fetchGmailMessages(
+          tokenResponse.access_token,
+          userEmail
+        );
+
+        // Build per-contact store and persist
+        const store = buildContactProfiles(rawMessages, userEmail, 'gmail');
+        saveContactStore(store);
+        setContactStore(store);
+
+        setGmailContacts(fetchedContacts);
         setIsGmailConnected(true);
+
+        // Run LLM enrichment in background (non-blocking)
+        runEnrichment(store);
       } catch (err) {
         console.error('Gmail sync failed:', err);
         setGmailError(err instanceof Error ? err.message : 'Sync failed. Try again.');
@@ -237,7 +292,8 @@ const Index = () => {
             );
           }
         },
-        controller.signal
+        controller.signal,
+        contactStore
       );
 
       // Finalize — remove streaming flag
@@ -259,7 +315,7 @@ const Index = () => {
         },
       ]);
     }
-  }, [contacts]);
+  }, [contacts, contactStore]);
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden">

@@ -20,6 +20,7 @@ interface GmailMessagePayload {
 
 interface GmailMessageResponse {
   id: string;
+  snippet?: string;
   payload?: GmailMessagePayload;
 }
 
@@ -29,19 +30,54 @@ function getHeader(headers: Array<{ name: string; value: string }> | undefined, 
   return h?.value || '';
 }
 
-/** Fetch Gmail messages (sent + received) and return contacts for the network graph */
+/** Fetch a single message's metadata + snippet */
+async function fetchOneMessage(
+  id: string,
+  accessToken: string
+): Promise<EmailMessage | null> {
+  const msgUrl = `https://www.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Cc&metadataHeaders=Date&metadataHeaders=Subject`;
+  const msgRes = await fetch(msgUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!msgRes.ok) return null;
+
+  const msgData: GmailMessageResponse = await msgRes.json();
+  const headers = msgData.payload?.headers || [];
+
+  const fromVal = getHeader(headers, 'From');
+  const toVal = getHeader(headers, 'To');
+  const ccVal = getHeader(headers, 'Cc');
+  const dateVal = getHeader(headers, 'Date') || msgData.payload?.internalDate;
+
+  const fromParsed = parseEmailHeaderString(fromVal);
+  const toParsed = parseEmailHeaderString(toVal);
+  const ccParsed = parseEmailHeaderString(ccVal);
+
+  return {
+    from: fromParsed[0],
+    toRecipients: toParsed,
+    ccRecipients: ccParsed,
+    date: dateVal ? new Date(dateVal) : new Date(),
+    subject: getHeader(headers, 'Subject'),
+    snippet: msgData.snippet || '',
+  };
+}
+
+/** Fetch Gmail messages (sent + received) and return contacts + raw messages */
 export async function fetchGmailMessages(
   accessToken: string,
   userEmail: string,
   maxMessages: number = 200
-): Promise<Contact[]> {
+): Promise<{ contacts: Contact[]; messages: EmailMessage[] }> {
   const allMessages: EmailMessage[] = [];
   let pageToken: string | undefined;
+  const BATCH_SIZE = 10;
 
   do {
     const listUrl = new URL('https://www.googleapis.com/gmail/v1/users/me/messages');
     listUrl.searchParams.set('maxResults', '100');
-    listUrl.searchParams.set('q', 'in:inbox OR in:sent'); // emails you received or sent
+    listUrl.searchParams.set('q', 'in:inbox OR in:sent');
     if (pageToken) listUrl.searchParams.set('pageToken', pageToken);
 
     const listRes = await fetch(listUrl.toString(), {
@@ -54,43 +90,23 @@ export async function fetchGmailMessages(
     }
 
     const listData: GmailMessageListResponse = await listRes.json();
-    const messageIds = listData.messages?.map((m) => m.id) || [];
+    const messageIds = (listData.messages?.map((m) => m.id) || [])
+      .slice(0, maxMessages - allMessages.length);
 
-    for (const id of messageIds) {
-      if (allMessages.length >= maxMessages) break;
-
-      const msgUrl = `https://www.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Cc&metadataHeaders=Date`;
-      const msgRes = await fetch(msgUrl, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-
-      if (!msgRes.ok) continue; // skip problematic messages
-
-      const msgData: GmailMessageResponse = await msgRes.json();
-      const headers = msgData.payload?.headers || [];
-
-      const fromVal = getHeader(headers, 'From');
-      const toVal = getHeader(headers, 'To');
-      const ccVal = getHeader(headers, 'Cc');
-      const dateVal = getHeader(headers, 'Date') || msgData.payload?.internalDate;
-
-      const fromParsed = parseEmailHeaderString(fromVal);
-      const toParsed = parseEmailHeaderString(toVal);
-      const ccParsed = parseEmailHeaderString(ccVal);
-
-      const from = fromParsed[0];
-      const date = dateVal ? new Date(dateVal) : new Date();
-
-      allMessages.push({
-        from,
-        toRecipients: toParsed,
-        ccRecipients: ccParsed,
-        date,
-      });
+    // Fetch in concurrent batches of BATCH_SIZE
+    for (let i = 0; i < messageIds.length; i += BATCH_SIZE) {
+      const batch = messageIds.slice(i, i + BATCH_SIZE);
+      const results = await Promise.all(
+        batch.map((id) => fetchOneMessage(id, accessToken))
+      );
+      for (const msg of results) {
+        if (msg) allMessages.push(msg);
+      }
     }
 
     pageToken = listData.nextPageToken;
   } while (pageToken && allMessages.length < maxMessages);
 
-  return processEmailsToContacts(allMessages, userEmail, 'gmail');
+  const contacts = processEmailsToContacts(allMessages, userEmail, 'gmail');
+  return { contacts, messages: allMessages };
 }
